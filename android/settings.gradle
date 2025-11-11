@@ -1,6 +1,30 @@
-pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
-plugins { id("com.facebook.react.settings") }
-extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
-rootProject.name = 'ssok_new'
-include ':app'
-includeBuild('../node_modules/@react-native/gradle-plugin')
+pluginManagement {
+    repositories {
+        mavenCentral()
+        google()
+        gradlePluginPortal()
+    }
+    // React Native Gradle Plugin을 node_modules에서 include
+    includeBuild("../node_modules/@react-native/gradle-plugin")
+}
+
+plugins {
+    id("com.facebook.react.settings")
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        mavenCentral()
+        google()
+        maven { url 'https://repository.map.naver.com/archive/maven' }
+        maven {
+            url("$rootDir/../node_modules/react-native/android")
+        }
+    }
+}
+
+rootProject.name = "ssok_new"
+include(":app")
+
+reactSettings.autolinkLibrariesFromCommand()

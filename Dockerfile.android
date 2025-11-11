@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1
+
+FROM --platform=$BUILDPLATFORM node:20-bullseye AS base
+
+# 기본 도구
+RUN apt-get update && apt-get install -y \
+    openjdk-17-jdk wget unzip git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools
+ENV GRADLE_USER_HOME=/app/.gradle
+ENV GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs='-Xmx3g -XX:+UseParallelGC'"
+
+# Android cmdline-tools 설치
+RUN mkdir -p $ANDROID_SDK_ROOT/cmdline-tools \
+ && cd $ANDROID_SDK_ROOT/cmdline-tools \
+ && wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip \
+ && unzip -q cmdline-tools.zip && rm cmdline-tools.zip \
+ && mv cmdline-tools latest
+
+# SDK 라이선스 및 필요한 패키지 설치
+RUN yes | sdkmanager --licenses || true \
+ && sdkmanager --update \
+ && sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+WORKDIR /app
+
+# 앱 의존성만 먼저 복사하여 캐시 최적화
+COPY package*.json ./
+# yarn이면 yarn.lock, pnpm이면 pnpm-lock.yaml을 복사
+# COPY yarn.lock ./
+
+# 리눅스용 네이티브 모듈로 깨끗하게 설치
+RUN npm ci --no-audit --no-fund
+
+# 나머지 소스 복사 (node_modules 제외: .dockerignore로 제어)
+COPY . .
+
+# 네이티브 모듈이 있다면 여기서 다시 빌드 트리거(옵션)
+# RUN npx react-native clean-project
+
+# Android 빌드
+WORKDIR /app/android
+RUN chmod +x ./gradlew
+RUN ./gradlew clean
+RUN ./gradlew assembleRelease --no-daemon --stacktrace --info
