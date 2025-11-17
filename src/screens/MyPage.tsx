@@ -15,6 +15,7 @@ type RootStackParamList = {
 
 type NavigationProp = {
   navigate: (screen: keyof RootStackParamList, params?: any) => void;
+  goBack: () => void;
 };
 
 interface UserKeyword {
@@ -126,16 +127,22 @@ export default function MyPage() {
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 16) }]}> 
       {/* 상단 헤더 */}
       <View style={styles.header}> 
-        <TouchableOpacity accessibilityRole="button" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity 
+          accessibilityRole="button" 
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          onPress={navigation.goBack}
+          style={styles.headerIconButton}
+        >
           <Ionicons name="chevron-back" size={26} color="#111" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>마이페이지</Text>
-        {__DEV__ && (
-          <TouchableOpacity onPress={runApiTest} style={styles.testButton}>
+        {__DEV__ ? (
+          <TouchableOpacity onPress={runApiTest} style={styles.headerIconButton}>
             <Ionicons name="bug" size={20} color="#FAA770" />
           </TouchableOpacity>
+        ) : (
+          <View style={styles.headerIconButton} />
         )}
-        {!__DEV__ && <View style={{ width: 26 }} />}
       </View>
 
       <ScrollView 
@@ -161,13 +168,15 @@ export default function MyPage() {
           </View>
           
           <View style={styles.profileInfo}>
-            <TouchableOpacity style={[styles.pillButton, { width: 59 }]} activeOpacity={0.8}>
-              <Text style={styles.pillButtonText}>닉네임</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.pillButton, { width: 203 }]} activeOpacity={0.8}>
-              <Text style={styles.pillButtonText}>{userNickname}</Text>
-              <Ionicons name="create-outline" size={14} color="rgba(0,0,0,0.9)" />
-            </TouchableOpacity>
+            <View style={styles.nicknameRow}>
+              <TouchableOpacity style={styles.nicknameLabelPill} activeOpacity={0.8}>
+                <Text style={styles.pillButtonText}>닉네임</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.nicknameValuePill} activeOpacity={0.8}>
+                <Text style={styles.nicknameValueText}>{userNickname}</Text>
+                <Ionicons name="create-outline" size={14} color="rgba(0,0,0,0.9)" />
+              </TouchableOpacity>
+            </View>
             <View style={styles.profileButtons}>
               <TouchableOpacity style={styles.actionButton} activeOpacity={0.85}>
                 <Text style={styles.actionButtonText}>저장된 장소 불러오기</Text>
@@ -217,9 +226,11 @@ export default function MyPage() {
                 <View style={styles.placeInfo}>
                   <Text style={styles.placeIcon}>{place.emoji}</Text>
                   <Text style={styles.placeName}>{place.name}</Text>
-                  <Text style={styles.placeKeywords}>
-                    {place.isClosed ? '#휴업중' : '#영업중'} • {place.distanceM}m
-                  </Text>
+                  <View style={styles.placeMeta}>
+                    <Text style={styles.placeKeywords}>
+                      {place.isClosed ? '#휴업중' : '#영업중'} • {place.distanceM}m
+                    </Text>
+                  </View>
                   <View style={styles.placeComment}>
                     <Text style={styles.commentEmoji}>😊</Text>
                     <Text style={styles.commentText}>내 키워드</Text>
@@ -254,15 +265,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
-  headerTitle: { fontSize: 20, fontWeight: "bold", color: "#111" },
-  content: { paddingHorizontal: 16, paddingBottom: 24 },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { flex: 1, textAlign: "center", fontSize: 20, fontWeight: "600", color: "#111" },
+  content: { paddingHorizontal: 24, paddingBottom: 32 },
   
   // 프로필 섹션
   profileSection: {
     flexDirection: "row",
-    marginTop: 20,
-    marginBottom: 30,
-    alignItems: "flex-start",
+    marginTop: 24,
+    marginBottom: 36,
+    alignItems: "center",
   },
   avatarContainer: {
     position: "relative",
@@ -272,11 +289,11 @@ const styles = StyleSheet.create({
     width: 147,
     height: 147,
     borderRadius: 30,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#f3f6f8",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#e0e0e0",
+    borderColor: "#e6e6e6",
   },
   editIcon: {
     position: "absolute",
@@ -293,21 +310,39 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 5,
   },
-  profileButtons: {
-    marginTop: 10,
-    gap: 8,
+  nicknameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  pillButton: {
+  profileButtons: {
+    marginTop: 14,
+    gap: 10,
+    width: 203,
+  },
+  nicknameLabelPill: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+    width: 59,
+    height: 32,
     backgroundColor: "#FBE0AD",
     borderWidth: 1,
     borderColor: "#FAA770",
     borderRadius: 6,
-    gap: 4,
+  },
+  nicknameValuePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderColor: "#FAA770",
+  },
+  nicknameValueText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "rgba(0,0,0,0.9)",
   },
   pillButtonText: {
     fontSize: 14,
@@ -315,17 +350,21 @@ const styles = StyleSheet.create({
     color: "rgba(0,0,0,0.9)",
   },
   actionButton: {
-    paddingVertical: 8,
+    height: 32,
     paddingHorizontal: 12,
+    width: "100%",
     backgroundColor: "#FBE0AD",
     borderWidth: 1,
     borderColor: "#FAA770",
     borderRadius: 6,
+    justifyContent: "center",
   },
   actionButtonText: {
     fontSize: 14,
     fontWeight: "700",
     color: "rgba(0,0,0,0.9)",
+    textAlign: "center",
+    width: "100%",
   },
   newListButton: {
     flexDirection: "row",
@@ -338,8 +377,8 @@ const styles = StyleSheet.create({
   
   // 섹션 스타일
   section: {
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 24,
+    marginBottom: 12,
   },
   sectionHeader: {
     marginBottom: 15,
@@ -354,7 +393,7 @@ const styles = StyleSheet.create({
   keywordRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 15,
+    marginBottom: 18,
   },
   keywordIcon: {
     width: 34,
@@ -373,7 +412,7 @@ const styles = StyleSheet.create({
   },
   keywordLabel: {
     fontSize: 16,
-    fontWeight: "400",
+    fontWeight: "600",
     color: "#000",
     marginBottom: 4,
   },
@@ -387,10 +426,11 @@ const styles = StyleSheet.create({
   // 추천 장소 스타일
   recommendedPlace: {
     flexDirection: "row",
-    marginBottom: 20,
-    paddingBottom: 20,
+    marginBottom: 24,
+    paddingBottom: 24,
     borderBottomWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#f0f0f0",
+    gap: 18,
   },
   placeImage: {
     width: 110,
@@ -399,7 +439,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 15,
+    marginRight: 0,
   },
   placeImageText: {
     fontSize: 40,
@@ -407,6 +447,7 @@ const styles = StyleSheet.create({
   placeInfo: {
     flex: 1,
     justifyContent: "center",
+    gap: 4,
   },
   placeIcon: {
     fontSize: 20,
@@ -419,10 +460,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   placeKeywords: {
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: "500",
     color: "#939396",
     marginBottom: 8,
+  },
+  placeMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   placeComment: {
     flexDirection: "row",
@@ -441,7 +487,7 @@ const styles = StyleSheet.create({
   },
   commentText: {
     fontSize: 20,
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#000",
   },
   emptyActivity: {
@@ -494,11 +540,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 8,
-  },
-  testButton: {
-    padding: 4,
-    borderRadius: 4,
-    backgroundColor: 'rgba(250, 167, 112, 0.1)',
   },
 });
 

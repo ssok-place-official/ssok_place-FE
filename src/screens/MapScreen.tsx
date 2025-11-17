@@ -13,17 +13,21 @@ import {
 // ✅ 새 패키지(Default export)
 import Ionicons from '@react-native-vector-icons/ionicons';
 //import MaterialIcons from '@react-native-vector-icons/material-icons';
-import BottomSheet from "@gorhom/bottom-sheet";
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Pressable } from 'react-native';
-import NaverMapView, { NaverMapMarker as Marker } from '@mj-studio/react-native-naver-map';
+// @ts-ignore - 타입 정의 문제로 인한 임시 처리
+import { NaverMapView } from '@mj-studio/react-native-naver-map';
 import { apiService, Friend } from '../services/api';
 
 export default function MapScreen() {
   const bottomSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const initialCenter = useMemo(
+    () => ({ latitude: 37.5665, longitude: 126.9780, zoom: 14 }),
+    []
+  );
+  const [mapKey, setMapKey] = useState(0);
   
   // 친구 목록 상태 관리
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -32,9 +36,17 @@ export default function MapScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFriends, setSelectedFriends] = useState<Set<number>>(new Set());
   const [favoriteFriends, setFavoriteFriends] = useState<Set<number>>(new Set());
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   
-  // BottomSheet 높이 설정
-  const snapPoints = useMemo(() => ["25%", "50%"], []);
+  // 카테고리 칩 아래 위치 계산
+  // 상단 여백 40px + 검색 바 높이 ~56px + 카테고리 칩 marginTop 12px + 칩 높이 32px = 약 140px
+  const topOffset = 40 + 56 + 12 + 32;
+  
+  // BottomSheet 높이 설정 - 카테고리 칩 아래부터 화면 끝까지
+  const snapPoints = useMemo(() => {
+    // 화면 높이에서 topOffset과 하단 바 높이를 뺀 값
+    return ["75%", "90%"];
+  }, []);
 
   // 친구 목록 조회
   const fetchFriends = useCallback(async (search?: string) => {
@@ -60,13 +72,26 @@ export default function MapScreen() {
     }
   }, []);
 
-  // 친구 목록 열기
+  // 친구 목록 열기/닫기 토글
   const openFriends = useCallback(() => {
-    bottomSheetRef.current?.expand();
-    if (friends.length === 0) {
-      fetchFriends();
+    if (isBottomSheetOpen) {
+      // BottomSheet가 열려있으면 닫기
+      bottomSheetRef.current?.close();
+      setIsBottomSheetOpen(false);
+    } else {
+      // BottomSheet가 닫혀있으면 열기
+      if (friends.length === 0) {
+        fetchFriends();
+      }
+      bottomSheetRef.current?.snapToIndex(0);
+      setIsBottomSheetOpen(true);
     }
-  }, [friends.length, fetchFriends]);
+  }, [isBottomSheetOpen, friends.length, fetchFriends]);
+
+  // BottomSheet 위치 변경 핸들러
+  const handleSheetChange = useCallback((index: number) => {
+    setIsBottomSheetOpen(index >= 0);
+  }, []);
 
   // 검색어 변경 핸들러
   const handleSearchChange = useCallback((text: string) => {
@@ -105,10 +130,25 @@ export default function MapScreen() {
     });
   }, []);
 
-  const categories = ["카페", "음식점", "술집", "놀거리", "숙소", "편의시설"];
+  const categories = ["카페", "음식점", "술집", "놀거리", "숙소"];
+  const [isMyButtonActive, setIsMyButtonActive] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setMapKey(prev => prev + 1);
+    }, [])
+  );
 
   return (
     <View style={styles.container}>
+      {/* 지도 영역: Naver Map - 배경으로 배치 */}
+      <NaverMapView
+        key={mapKey}
+        style={styles.map}
+        center={initialCenter}
+        useTextureView
+      />
+      
       {/* 상단 검색 바 */}
       <View style={styles.searchBar}>
         <Ionicons name="search" size={20} color="#aaa" />
@@ -120,22 +160,24 @@ export default function MapScreen() {
       </View>
 
       {/* 카테고리 Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+      <View style={styles.chipRow}>
         {categories.map((cat, idx) => (
           <TouchableOpacity key={idx} style={styles.chip}>
             <Text style={styles.chipText}>{cat}</Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
-      {/* 지도 영역: Naver Map */}
-      <NaverMapView
-        style={styles.map}
-        center={{ latitude: 37.5665, longitude: 126.9780, zoom: 14 }}
-        useTextureView
+      {/* MY 버튼 */}
+      <TouchableOpacity
+        style={[styles.myButton, isMyButtonActive && styles.myButtonActive]}
+        activeOpacity={0.8}
+        onPress={() => setIsMyButtonActive(prev => !prev)}
       >
-        <Marker coordinate={{ latitude: 37.5665, longitude: 126.9780 }} caption={{ text: '서울 시청' }} />
-      </NaverMapView>
+        <Text style={[styles.myButtonLabel, isMyButtonActive && styles.myButtonLabelActive]}>
+          MY
+        </Text>
+      </TouchableOpacity>
 
       {/* 하단 툴바 */}
       <View style={styles.bottomBar}>
@@ -169,8 +211,18 @@ export default function MapScreen() {
       </View>
 
       {/* BottomSheet: 친구 목록 */}
-      <BottomSheet ref={bottomSheetRef} index={-1} snapPoints={snapPoints}>
-        <View style={styles.sheetContent}>
+      <BottomSheet 
+        ref={bottomSheetRef} 
+        index={-1} 
+        snapPoints={snapPoints}
+        enablePanDownToClose={true}
+        topInset={topOffset}
+        backgroundStyle={styles.bottomSheetBackground}
+        handleIndicatorStyle={styles.bottomSheetHandle}
+        style={styles.bottomSheet}
+        onChange={handleSheetChange}
+      >
+        <BottomSheetView style={styles.sheetContent}>
           {/* 검색 바 */}
           <View style={styles.friendsSearchBar}>
             <Ionicons name="search" size={20} color="#aaa" />
@@ -259,14 +311,18 @@ export default function MapScreen() {
               ))
             )}
           </ScrollView>
-        </View>
+        </BottomSheetView>
       </BottomSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#fff",
+    position: 'relative',
+  },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -277,18 +333,72 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
     borderRadius: 12,
     backgroundColor: "#fff",
+    position: 'relative',
+    zIndex: 10,
   },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14 },
-  chipScroll: { marginTop: 12, marginBottom: 8, paddingHorizontal: 10 },
-  chip: {
-    backgroundColor: "#f1f1f1",
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    marginRight: 8,
+  chipRow: { 
+    flexDirection: 'row',
+    marginTop: 12, 
+    marginBottom: 0, 
+    paddingHorizontal: 22,
+    gap: 10,
+    position: 'relative',
+    zIndex: 10,
   },
-  chipText: { fontSize: 13, color: "#333" },
-  map: { flex: 1, marginTop: 6 },
+  chip: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#DADADA",
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    marginRight: 10,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chipText: { 
+    fontSize: 14, 
+    lineHeight: 22,
+    fontWeight: '500',
+    color: "rgba(0, 0, 0, 0.9)" 
+  },
+  myButton: {
+    position: 'absolute',
+    top: 150,
+    right: 16,
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    borderWidth: 0.6,
+    borderColor: '#D9D9D9',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 11,
+    elevation: 3,
+  },
+  myButtonActive: {
+    borderColor: '#FAA770',
+  },
+  myButtonLabel: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#D9D9D9',
+  },
+  myButtonLabelActive: {
+    color: '#FAA770',
+  },
+  map: { 
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
   bottomBar: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -296,11 +406,31 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: "#eee",
     backgroundColor: "#fff",
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
   },
   tabButton: { alignItems: "center", justifyContent: "center" },
   tabLabel: { fontSize: 12, marginTop: 4, color: "#000" },
   
   // BottomSheet 스타일
+  bottomSheet: {
+    borderTopLeftRadius: 19,
+    borderTopRightRadius: 19,
+  },
+  bottomSheetBackground: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 19,
+    borderTopRightRadius: 19,
+  },
+  bottomSheetHandle: {
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    width: 48,
+    height: 4,
+    borderRadius: 100,
+  },
   sheetContent: { 
     flex: 1, 
     paddingHorizontal: 16, 

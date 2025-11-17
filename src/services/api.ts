@@ -160,11 +160,42 @@ class ApiService {
         headers,
       });
 
-      const data = await response.json();
+      // 응답 본문을 텍스트로 먼저 가져오기
+      const text = await response.text();
+      
+      // 빈 응답 처리
+      if (!text || text.trim().length === 0) {
+        return {
+          code: response.status,
+          message: response.statusText || 'Empty response',
+          data: null,
+        };
+      }
+
+      // JSON 파싱 시도
+      let data: ApiResponse<T>;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        // JSON 파싱 실패 시 에러 응답 반환
+        console.error('Failed to parse JSON response:', parseError);
+        console.error('Response text:', text);
+        return {
+          code: response.status || 500,
+          message: 'Invalid JSON response',
+          data: null,
+        };
+      }
+
       return data;
     } catch (error) {
       console.error('API request failed:', error);
-      throw error;
+      // 네트워크 오류나 기타 오류 처리
+      return {
+        code: 500,
+        message: error instanceof Error ? error.message : 'Network error',
+        data: null,
+      };
     }
   }
 

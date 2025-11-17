@@ -29,6 +29,7 @@ declare module '@react-navigation/native' {
   }
 
   export function useNavigation<T = NavigationProp<any>>(): T;
+  export function useFocusEffect(callback: () => void | (() => void)): void;
   
   export function useRoute<T = any>(): {
     params: T;
