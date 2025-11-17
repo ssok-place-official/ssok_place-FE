@@ -7,7 +7,9 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "preinstall": "node -e \"if (!require('fs').existsSync('package-lock.json')) { console.error('package-lock.json이 없습니다. npm install을 실행해주세요.'); process.exit(1); }\"",
+    "postinstall": "node -e \"console.log('패키지 설치 완료');\""
   },
   "dependencies": {
     "@gorhom/bottom-sheet": "^5.2.6",

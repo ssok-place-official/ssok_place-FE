@@ -1,5 +1,5 @@
 // src/screens/MapScreen.tsx
-import React, { useRef, useMemo, useCallback, useState, useEffect } from "react";
+import React, { useRef, useMemo, useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import NaverMapView, { NaverMapMarker as Marker } from '@mj-studio/react-native-
 import { apiService, Friend } from '../services/api';
 
 export default function MapScreen() {
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const bottomSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   

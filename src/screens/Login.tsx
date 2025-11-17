@@ -15,7 +15,6 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
-import { apiService } from "../services/api";
 
 export default function Login() {
   const navigation = useNavigation();
@@ -47,36 +46,16 @@ export default function Login() {
 
     setIsLoading(true);
 
-    try {
-      const response = await apiService.login({
-        email: email.trim(),
-        password: password,
-      });
-
-      if (response.code === 200 && response.data) {
-        // 로그인 성공 - MapScreen으로 이동
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Map" as never }],
-        });
-      } else {
-        // 로그인 실패
-        Alert.alert(
-          "로그인 실패",
-          response.message || "이메일 또는 비밀번호가 올바르지 않습니다.",
-          [{ text: "확인" }]
-        );
-      }
-    } catch (error) {
-      console.error("로그인 오류:", error);
-      Alert.alert(
-        "오류",
-        "로그인 중 오류가 발생했습니다. 다시 시도해주세요.",
-        [{ text: "확인" }]
-      );
-    } finally {
+    // 데모 버전: 입력만 있으면 로그인 성공 처리
+    // 약간의 딜레이를 주어 실제 로그인처럼 보이게 함
+    setTimeout(() => {
       setIsLoading(false);
-    }
+      // 로그인 성공 - MapScreen으로 이동
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "Map" as never }],
+      });
+    }, 500);
   };
 
   return (
