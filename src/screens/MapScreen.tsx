@@ -1,5 +1,5 @@
 // src/screens/MapScreen.tsx
-import React, { useRef, useMemo, useCallback, useState } from "react";
+import React, { useRef, useMemo, useCallback, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Switch,
+  Image,
 } from "react-native";
 // ✅ 새 패키지(Default export)
 import Ionicons from '@react-native-vector-icons/ionicons';
@@ -17,18 +18,94 @@ import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Pressable } from 'react-native';
 // @ts-ignore - 타입 정의 문제로 인한 임시 처리
-import { NaverMapView } from '@mj-studio/react-native-naver-map';
+import { NaverMapView, NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
 import { apiService, Friend } from '../services/api';
+const placesCsv = require('../../places_with_coordinates.csv');
+
+type CsvPlace = {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+};
+
+const splitCsvLine = (line: string): string[] => {
+  const cells: string[] = [];
+  let current = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (insideQuotes && line[i + 1] === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+    } else if (char === ',' && !insideQuotes) {
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  cells.push(current.trim());
+
+  return cells;
+};
+
+const parsePlacesCsv = (csvText: string): CsvPlace[] => {
+  const lines = csvText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length <= 1) {
+    return [];
+  }
+
+  const [, ...rows] = lines;
+
+  return rows
+    .map((row, idx) => {
+      const cells = splitCsvLine(row);
+      if (cells.length < 4) {
+        return null;
+      }
+
+      const [name, address, lat, lng] = cells;
+      const latitude = Number(lat);
+      const longitude = Number(lng);
+
+      if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+        return null;
+      }
+
+      return {
+        id: `${name}-${idx}`,
+        name,
+        address,
+        latitude,
+        longitude,
+      };
+    })
+    .filter((place): place is CsvPlace => place !== null);
+};
 
 export default function MapScreen() {
   const bottomSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
   const navigation = useNavigation();
-  const initialCenter = useMemo(
-    () => ({ latitude: 37.5665, longitude: 126.9780, zoom: 14 }),
+  const initialCamera = useMemo(
+    () => ({ latitude: 37.2840131, longitude: 127.0141105, zoom: 14 }),
     []
   );
   const [mapKey, setMapKey] = useState(0);
-  
+  const [csvPlaces, setCsvPlaces] = useState<CsvPlace[]>([]);
+
   // 친구 목록 상태 관리
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,11 +114,41 @@ export default function MapScreen() {
   const [selectedFriends, setSelectedFriends] = useState<Set<number>>(new Set());
   const [favoriteFriends, setFavoriteFriends] = useState<Set<number>>(new Set());
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
-  
+  const [areMarkersVisible, setAreMarkersVisible] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCsvMarkers = async () => {
+      try {
+        const assetSource = Image.resolveAssetSource(placesCsv);
+        if (!assetSource?.uri) {
+          throw new Error('CSV asset URI를 찾을 수 없습니다.');
+        }
+
+        const response = await fetch(assetSource.uri);
+        const text = await response.text();
+        const parsed = parsePlacesCsv(text);
+
+        if (isMounted) {
+          setCsvPlaces(parsed);
+        }
+      } catch (err) {
+        console.error('CSV 마커 데이터 로드 실패:', err);
+      }
+    };
+
+    loadCsvMarkers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // 카테고리 칩 아래 위치 계산
   // 상단 여백 40px + 검색 바 높이 ~56px + 카테고리 칩 marginTop 12px + 칩 높이 32px = 약 140px
   const topOffset = 40 + 56 + 12 + 32;
-  
+
   // BottomSheet 높이 설정 - 카테고리 칩 아래부터 화면 끝까지
   const snapPoints = useMemo(() => {
     // 화면 높이에서 topOffset과 하단 바 높이를 뺀 값
@@ -58,7 +165,7 @@ export default function MapScreen() {
         page: 0,
         size: 50,
       });
-      
+
       if (response.code === 200 && response.data) {
         setFriends(response.data.content);
       } else {
@@ -100,7 +207,7 @@ export default function MapScreen() {
     const timeoutId = setTimeout(() => {
       fetchFriends(text);
     }, 500);
-    
+
     return () => clearTimeout(timeoutId);
   }, [fetchFriends]);
 
@@ -133,6 +240,11 @@ export default function MapScreen() {
   const categories = ["카페", "음식점", "술집", "놀거리", "숙소"];
   const [isMyButtonActive, setIsMyButtonActive] = useState(false);
 
+  const toggleMyButton = useCallback(() => {
+    setIsMyButtonActive(prev => !prev);
+    setAreMarkersVisible(prev => !prev);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       setMapKey(prev => prev + 1);
@@ -145,10 +257,20 @@ export default function MapScreen() {
       <NaverMapView
         key={mapKey}
         style={styles.map}
-        center={initialCenter}
+        initialCamera={initialCamera}
         useTextureView
-      />
-      
+      >
+        {areMarkersVisible &&
+          csvPlaces.map((place) => (
+            <NaverMapMarkerOverlay
+              key={place.id}
+              latitude={place.latitude}
+              longitude={place.longitude}
+              caption={{ text: place.name }}
+            />
+          ))}
+      </NaverMapView>
+
       {/* 상단 검색 바 */}
       <View style={styles.searchBar}>
         <Ionicons name="search" size={20} color="#aaa" />
@@ -172,7 +294,7 @@ export default function MapScreen() {
       <TouchableOpacity
         style={[styles.myButton, isMyButtonActive && styles.myButtonActive]}
         activeOpacity={0.8}
-        onPress={() => setIsMyButtonActive(prev => !prev)}
+        onPress={toggleMyButton}
       >
         <Text style={[styles.myButtonLabel, isMyButtonActive && styles.myButtonLabelActive]}>
           MY
@@ -191,14 +313,14 @@ export default function MapScreen() {
         <Pressable
           onPress={() => (navigation as any).navigate('SearchScreen')}
           style={({ pressed }: { pressed: boolean }) => [
-          styles.tabButton,
-          pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
-      ]}
+            styles.tabButton,
+            pressed && { opacity: 0.7, transform: [{ scale: 0.98 }] },
+          ]}
           android_ripple={{ color: '#e9e9e9' }}
           hitSlop={12}
           accessibilityRole="button"
           accessibilityLabel="자연어 검색 열기"
->
+        >
           <Ionicons name="search-circle-outline" size={32} color="#000" />
           <Text style={styles.tabLabel}>검색</Text>
         </Pressable>
@@ -211,9 +333,9 @@ export default function MapScreen() {
       </View>
 
       {/* BottomSheet: 친구 목록 */}
-      <BottomSheet 
-        ref={bottomSheetRef} 
-        index={-1} 
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose={true}
         topInset={topOffset}
@@ -318,8 +440,8 @@ export default function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     backgroundColor: "#fff",
     position: 'relative',
   },
@@ -337,10 +459,10 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14 },
-  chipRow: { 
+  chipRow: {
     flexDirection: 'row',
-    marginTop: 12, 
-    marginBottom: 0, 
+    marginTop: 12,
+    marginBottom: 0,
     paddingHorizontal: 22,
     gap: 10,
     position: 'relative',
@@ -358,11 +480,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  chipText: { 
-    fontSize: 14, 
+  chipText: {
+    fontSize: 14,
     lineHeight: 22,
     fontWeight: '500',
-    color: "rgba(0, 0, 0, 0.9)" 
+    color: "rgba(0, 0, 0, 0.9)"
   },
   myButton: {
     position: 'absolute',
@@ -390,7 +512,7 @@ const styles = StyleSheet.create({
   myButtonLabelActive: {
     color: '#FAA770',
   },
-  map: { 
+  map: {
     position: 'absolute',
     top: 0,
     left: 0,
@@ -414,7 +536,7 @@ const styles = StyleSheet.create({
   },
   tabButton: { alignItems: "center", justifyContent: "center" },
   tabLabel: { fontSize: 12, marginTop: 4, color: "#000" },
-  
+
   // BottomSheet 스타일
   bottomSheet: {
     borderTopLeftRadius: 19,
@@ -431,12 +553,12 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 100,
   },
-  sheetContent: { 
-    flex: 1, 
-    paddingHorizontal: 16, 
+  sheetContent: {
+    flex: 1,
+    paddingHorizontal: 16,
     paddingTop: 8,
   },
-  
+
   // 친구 검색 바
   friendsSearchBar: {
     flexDirection: "row",
@@ -457,12 +579,12 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-  
+
   // 친구 목록
   friendsList: {
     flex: 1,
   },
-  
+
   // 친구 아이템
   friendItem: {
     flexDirection: "row",
@@ -507,7 +629,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-  
+
   // 로딩 상태
   loadingContainer: {
     alignItems: "center",
@@ -519,7 +641,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
   },
-  
+
   // 에러 상태
   errorContainer: {
     alignItems: "center",
@@ -544,7 +666,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
   },
-  
+
   // 빈 상태
   emptyContainer: {
     alignItems: "center",

@@ -14,18 +14,17 @@ declare module '@mj-studio/react-native-naver-map' {
   }
 
   export interface MapProps extends ViewProps {
-    center?: CameraPosition;
+    camera?: CameraPosition;
+    initialCamera?: CameraPosition;
     useTextureView?: boolean;
   }
 
-  export default class NaverMapView extends React.Component<MapProps> {}
+  export const NaverMapView: React.ComponentType<MapProps>;
 
-  export interface MarkerProps {
-    coordinate: LatLng;
+  export interface MarkerOverlayProps extends LatLng {
     caption?: { text: string };
     onPress?: () => void;
   }
-  export class NaverMapMarker extends React.Component<MarkerProps> {}
+
+  export const NaverMapMarkerOverlay: React.ComponentType<MarkerOverlayProps>;
 }
-
-
