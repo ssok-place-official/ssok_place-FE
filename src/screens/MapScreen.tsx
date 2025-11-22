@@ -562,7 +562,10 @@ export default function MapScreen() {
             <TouchableOpacity style={styles.searchActionButton}>
               <Ionicons name="mic" size={20} color="#666" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.searchActionButton}>
+            <TouchableOpacity
+              style={styles.searchActionButton}
+              onPress={() => (navigation as any).navigate('MakeAppointment')}
+            >
               <Ionicons name="calendar" size={20} color="#666" />
             </TouchableOpacity>
           </View>
