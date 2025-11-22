@@ -9,6 +9,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Switch,
+  Image,
+  Dimensions,
 } from "react-native";
 // ✅ 새 패키지(Default export)
 import Ionicons from '@react-native-vector-icons/ionicons';
@@ -18,10 +20,11 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Pressable } from 'react-native';
 // @ts-ignore - 타입 정의 문제로 인한 임시 처리
 import { NaverMapView, NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
-import { apiService, Friend, Place, PlaceDetail } from '../services/api';
+import { apiService, Friend, Place, PlaceDetail, ActivityPlace } from '../services/api';
 
 export default function MapScreen() {
   const bottomSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
+  const placeDetailSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
   const navigation = useNavigation();
   const initialCamera = useMemo(
     () => ({ latitude: 37.2840131, longitude: 127.0141105, zoom: 14 }),
@@ -29,6 +32,7 @@ export default function MapScreen() {
   );
   const [mapKey, setMapKey] = useState(0);
   const [placeIds, setPlaceIds] = useState<string[]>([]); // placeId 목록만 저장
+  const [activityPlaces, setActivityPlaces] = useState<ActivityPlace[]>([]); // ActivityPlace 정보 저장 (emoji 포함)
   const [placeDetails, setPlaceDetails] = useState<PlaceDetail[]>([]); // 상세 정보 저장
   const [isLoadingPlaceDetails, setIsLoadingPlaceDetails] = useState(false);
 
@@ -40,7 +44,9 @@ export default function MapScreen() {
   const [selectedFriends, setSelectedFriends] = useState<Set<number>>(new Set());
   const [favoriteFriends, setFavoriteFriends] = useState<Set<number>>(new Set());
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
+  const [isPlaceDetailSheetOpen, setIsPlaceDetailSheetOpen] = useState(false);
   const [areMarkersVisible, setAreMarkersVisible] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<PlaceDetail | null>(null);
 
   // placeId 목록 로드 (GET /profile/me/activity로 placeId 추출)
   const loadPlaceIds = useCallback(async () => {
@@ -64,6 +70,9 @@ export default function MapScreen() {
         // 자주 방문한 장소와 뜸한 장소에서 placeId 추출
         const allActivityPlaces = [...response.data.frequent, ...response.data.dormant];
         
+        // ActivityPlace 정보 저장 (emoji 포함)
+        setActivityPlaces(allActivityPlaces);
+        
         // placeId 또는 id 추출
         const ids = allActivityPlaces
           .map((place) => {
@@ -80,6 +89,10 @@ export default function MapScreen() {
           console.log(`   - 전체 장소: ${allActivityPlaces.length}개`);
           console.log(`   - 유효한 placeId: ${ids.length}개`);
           console.log(`   - placeId 목록:`, ids);
+          // emoji 정보 로그
+          allActivityPlaces.forEach((place, index) => {
+            console.log(`   - 장소 ${index + 1}: ${place.name} (placeId: ${place.placeId}, emoji: ${place.emoji})`);
+          });
         }
 
         setPlaceIds(ids);
@@ -120,6 +133,11 @@ export default function MapScreen() {
   const snapPoints = useMemo(() => {
     // 화면 높이에서 topOffset과 하단 바 높이를 뺀 값
     return ["75%", "90%"];
+  }, []);
+
+  // 장소 상세 정보 BottomSheet 높이 설정
+  const placeDetailSnapPoints = useMemo(() => {
+    return ["50%", "75%"];
   }, []);
 
   // 친구 목록 조회
@@ -270,20 +288,33 @@ export default function MapScreen() {
             console.log(`   🔄 장소 상세 정보 로드 중: GET /places/${placeId}`);
           }
 
-          const response = await apiService.getPlaceDetail(placeId);
+          const response = await apiService.getPlaceDetail(placeId, true); // includeInsight=true로 이모지 포함하여 가져오기
           if (response.code === 200 && response.data) {
             const detail = response.data;
+            
+            // 원본 placeId를 명시적으로 저장 (activityPlaces와 매칭을 위해)
+            const detailWithPlaceId: PlaceDetail = {
+              ...detail,
+              placeId: detail.placeId || Number(placeId), // placeId가 없으면 원본 placeId 사용
+            };
 
             if (__DEV__) {
-              console.log(`   ✅ 장소 상세 정보 로드 성공: ${detail.name} (ID: ${placeId})`);
+              console.log(`   ✅ 장소 상세 정보 로드 성공: ${detail.name} (placeId: ${placeId})`);
+              console.log(`      - detail.id: ${detail.id}`);
+              console.log(`      - detail.placeId: ${detail.placeId}`);
+              console.log(`      - 저장된 placeId: ${detailWithPlaceId.placeId}`);
               console.log(`      - 전체 데이터:`, JSON.stringify(detail, null, 2));
               console.log(`      - 좌표 확인: lat=${detail.lat}, lng=${detail.lng}`);
               console.log(`      - 좌표 타입: lat=${typeof detail.lat}, lng=${typeof detail.lng}`);
               console.log(`      - 좌표 유효성: lat=${!isNaN(Number(detail.lat))}, lng=${!isNaN(Number(detail.lng))}`);
               console.log(`      - 이모지: ${detail.emoji || '없음'}`);
+              console.log(`      - response.data.insight 존재: ${detail.insight ? 'YES' : 'NO'}`);
               if (detail.insight) {
+                console.log(`      - response.data.insight.emoji: ${detail.insight.emoji || 'undefined'}`);
                 console.log(`      - 인사이트 이모지: ${detail.insight.emoji}`);
                 console.log(`      - 인사이트: ${detail.insight.emoji} ${detail.insight.keywords.map(k => k.term).join(', ')}`);
+              } else {
+                console.log(`      - ⚠️  response.data.insight가 없습니다. includeInsight=true 파라미터가 제대로 전달되었는지 확인하세요.`);
               }
             }
             
@@ -295,7 +326,7 @@ export default function MapScreen() {
               return null;
             }
             
-            return detail;
+            return detailWithPlaceId;
           } else {
             if (__DEV__) {
               console.warn(`   ⚠️  장소 상세 정보 로드 실패: ID ${placeId} - ${response.message}`);
@@ -311,19 +342,20 @@ export default function MapScreen() {
       });
 
       const details = await Promise.all(detailPromises);
-      // lat, lng가 있는 장소만 필터링
-      const validDetails = details.filter((detail): detail is PlaceDetail => {
-        if (detail === null) return false;
-        const lat = Number(detail.lat);
-        const lng = Number(detail.lng);
-        const isValid = !isNaN(lat) && !isNaN(lng) && lat != null && lng != null;
-        
-        if (__DEV__ && !isValid) {
-          console.warn(`   ⚠️  유효하지 않은 좌표 필터링:`, detail);
-        }
-        
-        return isValid;
-      });
+      // null 제거 후 lat, lng가 있는 장소만 필터링
+      const validDetails = details
+        .filter((detail): detail is PlaceDetail => detail !== null)
+        .filter((detail) => {
+          const lat = Number(detail.lat);
+          const lng = Number(detail.lng);
+          const isValid = !isNaN(lat) && !isNaN(lng) && lat != null && lng != null;
+          
+          if (__DEV__ && !isValid) {
+            console.warn(`   ⚠️  유효하지 않은 좌표 필터링:`, detail);
+          }
+          
+          return isValid;
+        });
       
       const responseTime = Date.now() - startTime;
 
@@ -426,15 +458,26 @@ export default function MapScreen() {
                 return null;
               }
               
-              // 장소의 emoji 가져오기 (place.emoji 또는 insight.emoji)
-              const placeEmoji = place.emoji || place.insight?.emoji || '📍';
+              // 장소의 emoji 가져오기 - place.insight?.emoji 사용
+              const placeEmoji = place.insight?.emoji || '📍';
               
               if (__DEV__) {
                 console.log(`   - 이모지: ${placeEmoji}`);
-                console.log(`   - place.emoji: ${place.emoji}`);
-                console.log(`   - place.insight?.emoji: ${place.insight?.emoji}`);
+                console.log(`   - place.insight?.emoji: ${place.insight?.emoji || 'undefined'}`);
+                console.log(`   - place.insight 존재: ${place.insight ? 'YES' : 'NO'}`);
               }
               
+              // 마커 클릭 핸들러 - 친구 버튼과 동일한 로직
+              const handleMarkerPress = () => {
+                console.log(`📍📍📍 [MapScreen] 마커 클릭 이벤트 발생: ${place.name}`);
+                
+                setSelectedPlace(place);
+                
+                // BottomSheet 열기 (친구 버튼과 동일한 방식)
+                placeDetailSheetRef.current?.snapToIndex(0);
+                setIsPlaceDetailSheetOpen(true);
+              };
+
               return (
                 <NaverMapMarkerOverlay
                   key={place.id || place.placeId || `place-${lat}-${lng}`}
@@ -443,10 +486,11 @@ export default function MapScreen() {
                   caption={{ text: place.name }}
                   width={50}
                   height={50}
+                  onPress={handleMarkerPress}
+                  onTap={handleMarkerPress}
                 >
-                  <View 
-                    key={`${placeEmoji}-${place.id || place.placeId}`}
-                    collapsable={false}
+                  <View
+                    pointerEvents="none"
                     style={{
                       width: 50,
                       height: 50,
@@ -637,11 +681,123 @@ export default function MapScreen() {
               ))
             )}
           </ScrollView>
-        </BottomSheetView>
-      </BottomSheet>
-    </View>
-  );
-}
+          </BottomSheetView>
+        </BottomSheet>
+
+        {/* BottomSheet: 장소 상세 정보 */}
+        <BottomSheet
+          ref={placeDetailSheetRef}
+          index={-1}
+          snapPoints={placeDetailSnapPoints}
+          enablePanDownToClose={true}
+          backgroundStyle={styles.bottomSheetBackground}
+          handleIndicatorStyle={styles.bottomSheetHandle}
+          style={[styles.bottomSheet, { zIndex: 20 }]}
+          onChange={(index) => {
+            setIsPlaceDetailSheetOpen(index >= 0);
+            if (index === -1) {
+              setSelectedPlace(null);
+            }
+          }}
+        >
+          <BottomSheetView style={styles.placeDetailSheetContent}>
+            {selectedPlace ? (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* 키워드 태그 */}
+                {selectedPlace.insight?.keywords && selectedPlace.insight.keywords.length > 0 && (
+                  <View style={styles.keywordTagsContainer}>
+                    {selectedPlace.insight.keywords.slice(0, 3).map((keyword, index) => {
+                      // 키워드별 색상 팔레트
+                      const colorPalette = [
+                        { bg: '#FEDEA7', opacity: 0.8 }, // 연한 노란색
+                        { bg: '#789EB3', opacity: 0.8 }, // 연한 파란색
+                        { bg: '#FA9052', opacity: 0.8 }, // 연한 주황색
+                      ];
+                      const color = colorPalette[index % colorPalette.length];
+                      
+                      return (
+                        <View
+                          key={index}
+                          style={[
+                            styles.keywordTag,
+                            { backgroundColor: color.bg, opacity: color.opacity },
+                          ]}
+                        >
+                          <Text style={styles.keywordTagText}>{keyword.term}</Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {/* 장소 이름 */}
+                <View style={styles.placeDetailHeader}>
+                  <Text style={styles.placeDetailName}>{selectedPlace.name}</Text>
+                </View>
+
+                {/* 이미지 캐러셀 */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.imageCarousel}
+                  contentContainerStyle={styles.imageCarouselContent}
+                >
+                  {/* 이미지 placeholder */}
+                  {[1, 2, 3, 4].map((index) => (
+                    <View key={index} style={styles.imagePlaceholder}>
+                      <Text style={styles.imagePlaceholderText}>이미지 {index}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+
+                {/* 메모 및 태그 */}
+                {selectedPlace.memo && (
+                  <View style={styles.placeDetailSection}>
+                    <Text style={styles.placeDetailSectionTitle}>메모</Text>
+                    <Text style={styles.placeDetailMemo}>{selectedPlace.memo}</Text>
+                  </View>
+                )}
+
+                {selectedPlace.tags && selectedPlace.tags.length > 0 && (
+                  <View style={styles.placeDetailSection}>
+                    <Text style={styles.placeDetailSectionTitle}>태그</Text>
+                    <View style={styles.tagsContainer}>
+                      {selectedPlace.tags.map((tag, index) => (
+                        <View key={index} style={styles.tag}>
+                          <Text style={styles.tagText}>{tag}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* 인사이트 키워드 전체 */}
+                {selectedPlace.insight?.keywords && selectedPlace.insight.keywords.length > 0 && (
+                  <View style={styles.placeDetailSection}>
+                    <Text style={styles.placeDetailSectionTitle}>키워드</Text>
+                    <View style={styles.insightKeywordsContainer}>
+                      {selectedPlace.insight.keywords.map((keyword, index) => (
+                        <View key={index} style={styles.insightKeyword}>
+                          <Text style={styles.insightKeywordTerm}>{keyword.term}</Text>
+                          <Text style={styles.insightKeywordWeight}>
+                            {(keyword.weight * 100).toFixed(0)}%
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </ScrollView>
+            ) : (
+              <View style={styles.placeDetailEmpty}>
+                <Text style={styles.placeDetailEmptyText}>장소 정보를 불러오는 중...</Text>
+              </View>
+            )}
+          </BottomSheetView>
+        </BottomSheet>
+      </View>
+    );
+  }
 
 const styles = StyleSheet.create({
   container: {
@@ -887,5 +1043,148 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 14,
     color: "#999",
+  },
+
+  // 장소 상세 정보 BottomSheet 스타일
+  placeDetailSheetContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  keywordTagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  keywordTag: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 14,
+  },
+  keywordTagText: {
+    fontSize: 14,
+    lineHeight: 17,
+    color: '#000000',
+    textAlign: 'center',
+  },
+  placeDetailHeader: {
+    marginBottom: 16,
+  },
+  placeDetailName: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#006CFF',
+    marginBottom: 8,
+  },
+  placeDetailMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  placeDetailStatus: {
+    fontSize: 14,
+    lineHeight: 17,
+    color: '#222225',
+  },
+  placeDetailDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#C5C5C7',
+  },
+  placeDetailMetaText: {
+    fontSize: 14,
+    lineHeight: 17,
+    color: '#656565',
+  },
+  imageCarousel: {
+    marginBottom: 16,
+  },
+  imageCarouselContent: {
+    gap: 2,
+  },
+  imagePlaceholder: {
+    width: 104,
+    height: 138,
+    backgroundColor: '#E5E5E5',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 2,
+  },
+  imagePlaceholderText: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 8,
+  },
+  placeImage: {
+    width: 104,
+    height: 138,
+    borderRadius: 12,
+    marginRight: 2,
+  },
+  placeDetailSection: {
+    marginBottom: 20,
+  },
+  placeDetailSectionTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#222225',
+    marginBottom: 8,
+  },
+  placeDetailMemo: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#333',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+  },
+  tagText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  insightKeywordsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  insightKeyword: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 8,
+    gap: 6,
+  },
+  insightKeywordTerm: {
+    fontSize: 14,
+    color: '#333',
+  },
+  insightKeywordWeight: {
+    fontSize: 12,
+    color: '#666',
+  },
+  placeDetailEmpty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  placeDetailEmptyText: {
+    fontSize: 14,
+    color: '#999',
   },
 });

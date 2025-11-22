@@ -24,6 +24,7 @@ declare module '@mj-studio/react-native-naver-map' {
   export interface MarkerOverlayProps extends LatLng {
     caption?: { text: string };
     onPress?: () => void;
+    onTap?: () => void;
     width?: number;
     height?: number;
     children?: React.ReactNode;

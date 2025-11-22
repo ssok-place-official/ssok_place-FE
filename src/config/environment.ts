@@ -34,6 +34,9 @@ export interface EnvironmentConfig {
   // 환경 플래그
   isDevelopment: boolean;
   isProduction: boolean;
+  // 네이버 API 설정
+  naverApiClientId?: string;
+  naverApiClientSecret?: string;
 }
 
 // 환경별 설정
@@ -52,6 +55,9 @@ const environments = {
     serverLocation: 'AWS EC2 (Ubuntu 22.04 LTS)',
     isDevelopment: true,
     isProduction: false,
+    // 네이버 API 설정 (환경 변수 또는 .env 파일에서 가져오기)
+    naverApiClientId: process.env.NAVER_API_CLIENT_ID || '',
+    naverApiClientSecret: process.env.NAVER_API_CLIENT_SECRET || '',
   },
   production: {
     // API 명세서에 따른 baseUrl
@@ -63,6 +69,9 @@ const environments = {
     serverLocation: 'AWS EC2 (Ubuntu 22.04 LTS)',
     isDevelopment: false,
     isProduction: true,
+    // 네이버 API 설정 (환경 변수 또는 .env 파일에서 가져오기)
+    naverApiClientId: process.env.NAVER_API_CLIENT_ID || '',
+    naverApiClientSecret: process.env.NAVER_API_CLIENT_SECRET || '',
   },
 };
 

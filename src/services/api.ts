@@ -229,8 +229,81 @@ class ApiService {
   }
 
   // GET /places/{placeId} - 내 저장 장소 상세
-  async getPlaceDetail(placeId: string): Promise<ApiResponse<PlaceDetail>> {
-    return this.request<PlaceDetail>(API_ENDPOINTS.PLACES_DETAIL(placeId));
+  async getPlaceDetail(placeId: string, includeInsight?: boolean): Promise<ApiResponse<PlaceDetail>> {
+    let endpoint = API_ENDPOINTS.PLACES_DETAIL(placeId);
+    if (includeInsight) {
+      endpoint += '?includeInsight=true';
+    }
+    return this.request<PlaceDetail>(endpoint);
+  }
+
+  // 네이버 장소 검색 API
+  async getNaverPlaceDetail(query: string): Promise<any> {
+    const clientId = config.naverApiClientId;
+    const clientSecret = config.naverApiClientSecret;
+
+    if (!clientId || !clientSecret) {
+      if (__DEV__) {
+        console.warn('⚠️  네이버 API 클라이언트 ID 또는 시크릿이 설정되지 않았습니다.');
+      }
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        `https://openapi.naver.com/v1/search/local.json?query=${encodeURIComponent(query)}&display=1&sort=random`,
+        {
+          method: 'GET',
+          headers: {
+            'X-Naver-Client-Id': clientId,
+            'X-Naver-Client-Secret': clientSecret,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`네이버 API 요청 실패: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.items && data.items.length > 0 ? data.items[0] : null;
+    } catch (error) {
+      console.error('❌ 네이버 API 호출 실패:', error);
+      return null;
+    }
+  }
+
+  // 네이버 장소 이미지 가져오기 (네이버 블로그 검색 API 사용)
+  async getNaverPlaceImages(query: string): Promise<string[]> {
+    const clientId = config.naverApiClientId;
+    const clientSecret = config.naverApiClientSecret;
+
+    if (!clientId || !clientSecret) {
+      return [];
+    }
+
+    try {
+      const response = await fetch(
+        `https://openapi.naver.com/v1/search/image?query=${encodeURIComponent(query)}&display=4&sort=sim`,
+        {
+          method: 'GET',
+          headers: {
+            'X-Naver-Client-Id': clientId,
+            'X-Naver-Client-Secret': clientSecret,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`네이버 이미지 API 요청 실패: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.items ? data.items.map((item: any) => item.link) : [];
+    } catch (error) {
+      console.error('❌ 네이버 이미지 API 호출 실패:', error);
+      return [];
+    }
   }
 
   // POST /places - 새 장소 저장

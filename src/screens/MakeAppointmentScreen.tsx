@@ -69,10 +69,18 @@ export default function MakeAppointmentScreen() {
 
   // 선택 완료 버튼 핸들러
   const handleCompleteSelection = useCallback(() => {
-    // TODO: 선택된 친구 목록을 다음 화면으로 전달하거나 API 호출
-    console.log('선택된 친구:', Array.from(selectedFriends));
-    // navigation.goBack();
-  }, [selectedFriends]);
+    console.log('✅ [MakeAppointmentScreen] 선택 완료 버튼 클릭됨');
+    console.log('   - 선택된 친구:', Array.from(selectedFriends));
+    console.log('   - navigation 객체 존재:', navigation !== null);
+    
+    try {
+      // SearchScreen으로 화면 전환
+      (navigation as any).navigate('SearchScreen');
+      console.log('   ✅ SearchScreen으로 화면 전환 시도 완료');
+    } catch (error) {
+      console.error('❌ [MakeAppointmentScreen] 화면 전환 실패:', error);
+    }
+  }, [selectedFriends, navigation]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -159,6 +167,7 @@ export default function MakeAppointmentScreen() {
           style={styles.completeButton}
           onPress={handleCompleteSelection}
           activeOpacity={0.8}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={styles.completeButtonText}>선택 완료</Text>
         </TouchableOpacity>
