@@ -258,7 +258,8 @@ export default function MapScreen() {
     });
   }, []);
 
-  const categories = ["카페", "음식점", "술집", "놀거리", "숙소"];
+  const keywordChips = ["분위기좋은", "디저트", "데이트"];
+  const [selectedKeyword, setSelectedKeyword] = useState<string | null>(null);
   const [isMyButtonActive, setIsMyButtonActive] = useState(false);
 
   // 장소 상세 정보 로드 (MY 버튼 활성화 시) - GET /places/{placeId} 사용
@@ -438,7 +439,18 @@ export default function MapScreen() {
       >
         {areMarkersVisible && placeDetails.length > 0 && (
           <>
-            {placeDetails.map((place) => {
+            {placeDetails
+              .filter((place) => {
+                // 키워드 필터링: 선택된 키워드가 없으면 모두 표시, 있으면 해당 키워드를 가진 장소만 표시
+                if (!selectedKeyword) {
+                  return true;
+                }
+                // insight.keywords에서 선택된 키워드와 일치하는지 확인
+                return place.insight?.keywords?.some(
+                  (keyword) => keyword.term === selectedKeyword
+                ) || false;
+              })
+              .map((place) => {
               const lat = Number(place.lat);
               const lng = Number(place.lng);
               
@@ -526,13 +538,37 @@ export default function MapScreen() {
         />
       </View>
 
-      {/* 카테고리 Chips */}
+      {/* 키워드 Chips */}
       <View style={styles.chipRow}>
-        {categories.map((cat, idx) => (
-          <TouchableOpacity key={idx} style={styles.chip}>
-            <Text style={styles.chipText}>{cat}</Text>
-          </TouchableOpacity>
-        ))}
+        {keywordChips.map((keyword, idx) => {
+          const isSelected = selectedKeyword === keyword;
+          return (
+            <TouchableOpacity
+              key={idx}
+              style={[
+                styles.chip,
+                isSelected && styles.chipSelected
+              ]}
+              onPress={() => {
+                // 같은 키워드를 다시 클릭하면 필터 해제, 다른 키워드를 클릭하면 해당 키워드로 필터링
+                if (selectedKeyword === keyword) {
+                  setSelectedKeyword(null);
+                  console.log(`📍 [MapScreen] 키워드 필터 해제: ${keyword}`);
+                } else {
+                  setSelectedKeyword(keyword);
+                  console.log(`📍 [MapScreen] 키워드 필터 적용: ${keyword}`);
+                }
+              }}
+            >
+              <Text style={[
+                styles.chipText,
+                isSelected && styles.chipTextSelected
+              ]}>
+                {keyword}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* MY 버튼 */}
@@ -840,11 +876,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  chipSelected: {
+    backgroundColor: "#FAA770",
+    borderColor: "#FAA770",
+  },
   chipText: {
     fontSize: 14,
     lineHeight: 22,
     fontWeight: '500',
     color: "rgba(0, 0, 0, 0.9)"
+  },
+  chipTextSelected: {
+    color: "#FFFFFF"
   },
   myButton: {
     position: 'absolute',
