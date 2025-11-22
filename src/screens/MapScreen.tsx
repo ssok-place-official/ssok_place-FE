@@ -9,7 +9,6 @@ import {
   ScrollView,
   ActivityIndicator,
   Switch,
-  Image,
 } from "react-native";
 // ✅ 새 패키지(Default export)
 import Ionicons from '@react-native-vector-icons/ionicons';
@@ -19,82 +18,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Pressable } from 'react-native';
 // @ts-ignore - 타입 정의 문제로 인한 임시 처리
 import { NaverMapView, NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
-import { apiService, Friend } from '../services/api';
-const placesCsv = require('../../places_with_coordinates.csv');
-
-type CsvPlace = {
-  id: string;
-  name: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-};
-
-const splitCsvLine = (line: string): string[] => {
-  const cells: string[] = [];
-  let current = '';
-  let insideQuotes = false;
-
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-
-    if (char === '"') {
-      if (insideQuotes && line[i + 1] === '"') {
-        current += '"';
-        i += 1;
-      } else {
-        insideQuotes = !insideQuotes;
-      }
-    } else if (char === ',' && !insideQuotes) {
-      cells.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-
-  cells.push(current.trim());
-
-  return cells;
-};
-
-const parsePlacesCsv = (csvText: string): CsvPlace[] => {
-  const lines = csvText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-
-  if (lines.length <= 1) {
-    return [];
-  }
-
-  const [, ...rows] = lines;
-
-  return rows
-    .map((row, idx) => {
-      const cells = splitCsvLine(row);
-      if (cells.length < 4) {
-        return null;
-      }
-
-      const [name, address, lat, lng] = cells;
-      const latitude = Number(lat);
-      const longitude = Number(lng);
-
-      if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
-        return null;
-      }
-
-      return {
-        id: `${name}-${idx}`,
-        name,
-        address,
-        latitude,
-        longitude,
-      };
-    })
-    .filter((place): place is CsvPlace => place !== null);
-};
+import { apiService, Friend, Place, PlaceDetail } from '../services/api';
 
 export default function MapScreen() {
   const bottomSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
@@ -104,7 +28,9 @@ export default function MapScreen() {
     []
   );
   const [mapKey, setMapKey] = useState(0);
-  const [csvPlaces, setCsvPlaces] = useState<CsvPlace[]>([]);
+  const [placeIds, setPlaceIds] = useState<string[]>([]); // placeId 목록만 저장
+  const [placeDetails, setPlaceDetails] = useState<PlaceDetail[]>([]); // 상세 정보 저장
+  const [isLoadingPlaceDetails, setIsLoadingPlaceDetails] = useState(false);
 
   // 친구 목록 상태 관리
   const [friends, setFriends] = useState<Friend[]>([]);
@@ -116,34 +42,75 @@ export default function MapScreen() {
   const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
   const [areMarkersVisible, setAreMarkersVisible] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadCsvMarkers = async () => {
-      try {
-        const assetSource = Image.resolveAssetSource(placesCsv);
-        if (!assetSource?.uri) {
-          throw new Error('CSV asset URI를 찾을 수 없습니다.');
-        }
-
-        const response = await fetch(assetSource.uri);
-        const text = await response.text();
-        const parsed = parsePlacesCsv(text);
-
-        if (isMounted) {
-          setCsvPlaces(parsed);
-        }
-      } catch (err) {
-        console.error('CSV 마커 데이터 로드 실패:', err);
+  // placeId 목록 로드 (GET /profile/me/activity로 placeId 추출)
+  const loadPlaceIds = useCallback(async () => {
+    try {
+      if (__DEV__) {
+        console.log('📍 [MapScreen] placeId 목록 로드 시작...');
+        console.log('📍 API 엔드포인트: GET /profile/me/activity');
       }
-    };
 
-    loadCsvMarkers();
+      const startTime = Date.now();
+      const response = await apiService.getMyActivity();
+      const responseTime = Date.now() - startTime;
 
-    return () => {
-      isMounted = false;
-    };
+      if (__DEV__) {
+        console.log(`⏱️  [MapScreen] API 응답 시간: ${responseTime}ms`);
+        console.log(`📊 [MapScreen] 응답 코드: ${response.code}`);
+        console.log(`📝 [MapScreen] 응답 메시지: ${response.message}`);
+      }
+
+      if (response.code === 200 && response.data) {
+        // 자주 방문한 장소와 뜸한 장소에서 placeId 추출
+        const allActivityPlaces = [...response.data.frequent, ...response.data.dormant];
+        
+        // placeId 또는 id 추출
+        const ids = allActivityPlaces
+          .map((place) => {
+            // ActivityPlace 타입은 placeId를 가지고 있음
+            const placeId = place.placeId ? String(place.placeId) : null;
+            return placeId;
+          })
+          .filter((id): id is string => id !== null);
+
+        if (__DEV__) {
+          console.log(`✅ [MapScreen] placeId 목록 로드 성공`);
+          console.log(`   - 자주 방문한 장소: ${response.data.frequent.length}개`);
+          console.log(`   - 뜸한 장소: ${response.data.dormant.length}개`);
+          console.log(`   - 전체 장소: ${allActivityPlaces.length}개`);
+          console.log(`   - 유효한 placeId: ${ids.length}개`);
+          console.log(`   - placeId 목록:`, ids);
+        }
+
+        setPlaceIds(ids);
+        
+        // placeId가 있으면 MY 버튼 활성화
+        if (ids.length > 0) {
+          setIsMyButtonActive(true);
+          setPlaceDetails([]);
+        }
+      } else {
+        if (__DEV__) {
+          console.warn(`⚠️  [MapScreen] placeId 목록 API 응답 실패`);
+          console.warn(`   - 코드: ${response.code}`);
+          console.warn(`   - 메시지: ${response.message}`);
+        }
+        setPlaceIds([]);
+      }
+    } catch (error) {
+      console.error('❌ [MapScreen] placeId 목록 로드 실패:', error);
+      if (__DEV__) {
+        console.error('   - 에러 타입:', error instanceof Error ? error.constructor.name : typeof error);
+        console.error('   - 에러 메시지:', error instanceof Error ? error.message : String(error));
+      }
+      setPlaceIds([]);
+    }
   }, []);
+
+  // 컴포넌트 마운트 시 placeId 목록 로드
+  useEffect(() => {
+    loadPlaceIds();
+  }, [loadPlaceIds]);
 
   // 카테고리 칩 아래 위치 계산
   // 상단 여백 40px + 검색 바 높이 ~56px + 카테고리 칩 marginTop 12px + 칩 높이 32px = 약 140px
@@ -160,19 +127,55 @@ export default function MapScreen() {
     try {
       setLoading(true);
       setError(null);
+      
+      if (__DEV__) {
+        console.log('👥 [MapScreen] 친구 목록 조회 시작...');
+        console.log('📍 API 엔드포인트: GET /friends');
+        if (search) {
+          console.log(`   - 검색어: ${search}`);
+        }
+      }
+
+      const startTime = Date.now();
       const response = await apiService.getFriends({
         search: search || undefined,
         page: 0,
         size: 50,
       });
+      const responseTime = Date.now() - startTime;
+
+      if (__DEV__) {
+        console.log(`⏱️  [MapScreen] 친구 목록 API 응답 시간: ${responseTime}ms`);
+        console.log(`📊 [MapScreen] 응답 코드: ${response.code}`);
+        console.log(`📝 [MapScreen] 응답 메시지: ${response.message}`);
+      }
 
       if (response.code === 200 && response.data) {
+        if (__DEV__) {
+          console.log(`✅ [MapScreen] 친구 목록 로드 성공`);
+          console.log(`   - 전체 친구 수: ${response.data.totalElements}개`);
+          console.log(`   - 현재 페이지 친구 수: ${response.data.content.length}개`);
+          console.log(`   - 페이지 정보: ${response.data.page + 1}/${response.data.totalPages}`);
+        }
         setFriends(response.data.content);
       } else {
-        setError('친구 목록을 불러오는데 실패했습니다.');
+        const errorMessage = response.message || '친구 목록을 불러오는데 실패했습니다.';
+        if (__DEV__) {
+          console.warn(`⚠️  [MapScreen] 친구 목록 API 응답 실패`);
+          console.warn(`   - 코드: ${response.code}`);
+          console.warn(`   - 메시지: ${errorMessage}`);
+        }
+        setError(errorMessage);
       }
     } catch (err) {
-      console.error('친구 목록 조회 실패:', err);
+      console.error('❌ [MapScreen] 친구 목록 조회 실패:', err);
+      if (__DEV__) {
+        console.error('   - 에러 타입:', err instanceof Error ? err.constructor.name : typeof err);
+        console.error('   - 에러 메시지:', err instanceof Error ? err.message : String(err));
+        if (err instanceof Error && err.stack) {
+          console.error('   - 스택 트레이스:', err.stack);
+        }
+      }
       setError('네트워크 오류가 발생했습니다.');
     } finally {
       setLoading(false);
@@ -240,10 +243,151 @@ export default function MapScreen() {
   const categories = ["카페", "음식점", "술집", "놀거리", "숙소"];
   const [isMyButtonActive, setIsMyButtonActive] = useState(false);
 
-  const toggleMyButton = useCallback(() => {
-    setIsMyButtonActive(prev => !prev);
-    setAreMarkersVisible(prev => !prev);
-  }, []);
+  // 장소 상세 정보 로드 (MY 버튼 활성화 시) - GET /places/{placeId} 사용
+  const loadPlaceDetails = useCallback(async () => {
+    if (placeIds.length === 0) {
+      if (__DEV__) {
+        console.warn('⚠️  [MapScreen] placeId 목록이 비어있습니다.');
+      }
+      return;
+    }
+
+    try {
+      setIsLoadingPlaceDetails(true);
+      
+      if (__DEV__) {
+        console.log('📍 [MapScreen] 장소 상세 정보 로드 시작...');
+        console.log(`   - 로드할 placeId 수: ${placeIds.length}개`);
+        console.log(`   - placeId 목록:`, placeIds);
+      }
+
+      const startTime = Date.now();
+      
+      // 각 placeId로 상세 정보 가져오기 (GET /places/{placeId})
+      const detailPromises = placeIds.map(async (placeId) => {
+        try {
+          if (__DEV__) {
+            console.log(`   🔄 장소 상세 정보 로드 중: GET /places/${placeId}`);
+          }
+
+          const response = await apiService.getPlaceDetail(placeId);
+          if (response.code === 200 && response.data) {
+            const detail = response.data;
+
+            if (__DEV__) {
+              console.log(`   ✅ 장소 상세 정보 로드 성공: ${detail.name} (ID: ${placeId})`);
+              console.log(`      - 전체 데이터:`, JSON.stringify(detail, null, 2));
+              console.log(`      - 좌표 확인: lat=${detail.lat}, lng=${detail.lng}`);
+              console.log(`      - 좌표 타입: lat=${typeof detail.lat}, lng=${typeof detail.lng}`);
+              console.log(`      - 좌표 유효성: lat=${!isNaN(Number(detail.lat))}, lng=${!isNaN(Number(detail.lng))}`);
+              console.log(`      - 이모지: ${detail.emoji || '없음'}`);
+              if (detail.insight) {
+                console.log(`      - 인사이트 이모지: ${detail.insight.emoji}`);
+                console.log(`      - 인사이트: ${detail.insight.emoji} ${detail.insight.keywords.map(k => k.term).join(', ')}`);
+              }
+            }
+            
+            // 좌표가 없으면 null 반환
+            if (detail.lat == null || detail.lng == null || isNaN(Number(detail.lat)) || isNaN(Number(detail.lng))) {
+              if (__DEV__) {
+                console.warn(`   ⚠️  좌표가 유효하지 않음: lat=${detail.lat}, lng=${detail.lng}`);
+              }
+              return null;
+            }
+            
+            return detail;
+          } else {
+            if (__DEV__) {
+              console.warn(`   ⚠️  장소 상세 정보 로드 실패: ID ${placeId} - ${response.message}`);
+            }
+            return null;
+          }
+        } catch (error) {
+          if (__DEV__) {
+            console.error(`   ❌ 장소 상세 정보 로드 에러: ID ${placeId}`, error);
+          }
+          return null;
+        }
+      });
+
+      const details = await Promise.all(detailPromises);
+      // lat, lng가 있는 장소만 필터링
+      const validDetails = details.filter((detail): detail is PlaceDetail => {
+        if (detail === null) return false;
+        const lat = Number(detail.lat);
+        const lng = Number(detail.lng);
+        const isValid = !isNaN(lat) && !isNaN(lng) && lat != null && lng != null;
+        
+        if (__DEV__ && !isValid) {
+          console.warn(`   ⚠️  유효하지 않은 좌표 필터링:`, detail);
+        }
+        
+        return isValid;
+      });
+      
+      const responseTime = Date.now() - startTime;
+
+      if (__DEV__) {
+        console.log(`⏱️  [MapScreen] 장소 상세 정보 로드 완료: ${responseTime}ms`);
+        console.log(`   - 성공: ${validDetails.length}개 / 전체: ${placeIds.length}개`);
+        console.log(`   - 유효한 장소 상세 정보:`, validDetails.map(p => ({
+          name: p.name,
+          lat: p.lat,
+          lng: p.lng,
+          id: p.id
+        })));
+      }
+
+      setPlaceDetails(validDetails);
+      
+      // 유효한 장소가 있으면 마커 표시 활성화
+      if (validDetails.length > 0) {
+        setAreMarkersVisible(true);
+        if (__DEV__) {
+          console.log(`✅ [MapScreen] 마커 표시 활성화: ${validDetails.length}개 마커`);
+        }
+      } else {
+        setAreMarkersVisible(false);
+        if (__DEV__) {
+          console.warn(`⚠️  [MapScreen] 유효한 장소가 없어 마커를 표시할 수 없습니다.`);
+        }
+      }
+    } catch (error) {
+      console.error('❌ [MapScreen] 장소 상세 정보 로드 실패:', error);
+      setPlaceDetails([]);
+    } finally {
+      setIsLoadingPlaceDetails(false);
+    }
+  }, [placeIds]);
+
+  const toggleMyButton = useCallback(async () => {
+    const willBeActive = !isMyButtonActive;
+    setIsMyButtonActive(willBeActive);
+
+    if (willBeActive) {
+      // MY 버튼을 활성화할 때 장소 상세 정보 로드 (GET /places/{placeId})
+      if (placeIds.length > 0) {
+        if (placeDetails.length === 0) {
+          // 상세 정보가 없으면 로드
+          await loadPlaceDetails();
+        } else {
+          // 이미 로드된 상세 정보가 있으면 바로 표시
+          setAreMarkersVisible(true);
+          if (__DEV__) {
+            console.log(`✅ [MapScreen] 이미 로드된 장소 상세 정보로 마커 표시: ${placeDetails.length}개`);
+          }
+        }
+      } else {
+        if (__DEV__) {
+          console.warn(`⚠️  [MapScreen] placeId 목록이 비어있어 마커를 표시할 수 없습니다.`);
+        }
+        setAreMarkersVisible(false);
+      }
+    } else {
+      // MY 버튼 비활성화 시 마커 숨김
+      setAreMarkersVisible(false);
+    }
+  }, [isMyButtonActive, placeIds, placeDetails, loadPlaceDetails]);
 
   useFocusEffect(
     useCallback(() => {
@@ -260,15 +404,72 @@ export default function MapScreen() {
         initialCamera={initialCamera}
         useTextureView
       >
-        {areMarkersVisible &&
-          csvPlaces.map((place) => (
-            <NaverMapMarkerOverlay
-              key={place.id}
-              latitude={place.latitude}
-              longitude={place.longitude}
-              caption={{ text: place.name }}
-            />
-          ))}
+        {areMarkersVisible && placeDetails.length > 0 && (
+          <>
+            {placeDetails.map((place) => {
+              const lat = Number(place.lat);
+              const lng = Number(place.lng);
+              
+              if (__DEV__) {
+                console.log(`📍 [MapScreen] 마커 렌더링: ${place.name}`, {
+                  lat,
+                  lng,
+                  isValid: !isNaN(lat) && !isNaN(lng)
+                });
+              }
+              
+              // 좌표가 유효한 경우에만 마커 생성
+              if (isNaN(lat) || isNaN(lng)) {
+                if (__DEV__) {
+                  console.warn(`⚠️  [MapScreen] 유효하지 않은 좌표로 마커 생성 스킵: ${place.name}`, { lat, lng });
+                }
+                return null;
+              }
+              
+              // 장소의 emoji 가져오기 (place.emoji 또는 insight.emoji)
+              const placeEmoji = place.emoji || place.insight?.emoji || '📍';
+              
+              if (__DEV__) {
+                console.log(`   - 이모지: ${placeEmoji}`);
+                console.log(`   - place.emoji: ${place.emoji}`);
+                console.log(`   - place.insight?.emoji: ${place.insight?.emoji}`);
+              }
+              
+              return (
+                <NaverMapMarkerOverlay
+                  key={place.id || place.placeId || `place-${lat}-${lng}`}
+                  latitude={lat}
+                  longitude={lng}
+                  caption={{ text: place.name }}
+                  width={50}
+                  height={50}
+                >
+                  <View 
+                    key={`${placeEmoji}-${place.id || place.placeId}`}
+                    collapsable={false}
+                    style={{
+                      width: 50,
+                      height: 50,
+                      borderRadius: 25,
+                      backgroundColor: 'white',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor: '#FAA770',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 3.84,
+                      elevation: 5,
+                    }}
+                  >
+                    <Text style={{ fontSize: 24 }}>{placeEmoji}</Text>
+                  </View>
+                </NaverMapMarkerOverlay>
+              );
+            })}
+          </>
+        )}
       </NaverMapView>
 
       {/* 상단 검색 바 */}

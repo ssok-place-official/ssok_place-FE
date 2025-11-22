@@ -37,12 +37,13 @@ export interface EnvironmentConfig {
 }
 
 // 환경별 설정
+// API 명세서 기준: baseUrl = https://api.ebiztable.shop/
 const environments = {
   development: {
-    // Production HTTPS 사용 (SSL 적용됨, 권장)
-    apiBaseUrl: 'https://ebiztable.shop/api',
+    // API 명세서에 따른 baseUrl
+    apiBaseUrl: 'https://api.ebiztable.shop',
     // 로컬 테스트용 설정 (필요시 주석 해제)
-    // apiBaseUrl: 'http://43.202.52.161:8080/api',
+    // apiBaseUrl: 'http://43.202.52.161:8080',
     
     productionDomain: 'https://ebiztable.shop',
     developmentIp: '43.202.52.161',
@@ -53,7 +54,8 @@ const environments = {
     isProduction: false,
   },
   production: {
-    apiBaseUrl: 'https://ebiztable.shop/api',
+    // API 명세서에 따른 baseUrl
+    apiBaseUrl: 'https://api.ebiztable.shop',
     productionDomain: 'https://ebiztable.shop',
     developmentIp: '43.202.52.161',
     developmentPort: 8080,
@@ -76,8 +78,10 @@ export const HEALTH_CHECK_URL = 'https://ebiztable.shop/actuator/health';
 export const API_ENDPOINTS = {
   // 인증 관련 엔드포인트
   LOGIN: '/users/login',
+  USERS_ME: '/users/me',
   PLACES: '/places',
   PLACES_NEARBY: '/places/nearby',
+  PLACES_ALL: '/places/all', // 사용자 저장 장소 전체 목록
   PLACES_USER: '/places/user', // 사용자 장소 목록 (추정)
   PLACES_DETAIL: (placeId: string) => `/places/${placeId}`,
   // 친구 관련 엔드포인트

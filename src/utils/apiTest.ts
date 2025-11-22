@@ -21,6 +21,10 @@ export class ApiTester {
     const userPlacesResult = await this.testUserPlaces();
     results.push(userPlacesResult);
     
+    // 내 활동 데이터 테스트
+    const myActivityResult = await this.testMyActivity();
+    results.push(myActivityResult);
+    
     return results;
   }
 
@@ -86,6 +90,29 @@ export class ApiTester {
     } catch (error) {
       return {
         endpoint: 'GET /places/nearby',
+        success: false,
+        responseTime: Date.now() - startTime,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  // 내 활동 데이터 테스트
+  static async testMyActivity(lookbackDays: number = 90): Promise<ApiTestResult> {
+    const startTime = Date.now();
+    try {
+      const response = await apiService.getMyActivity(lookbackDays);
+      const responseTime = Date.now() - startTime;
+      
+      return {
+        endpoint: 'GET /profile/me/activity',
+        success: response.code === 200,
+        responseTime,
+        error: response.code !== 200 ? response.message : undefined,
+      };
+    } catch (error) {
+      return {
+        endpoint: 'GET /profile/me/activity',
         success: false,
         responseTime: Date.now() - startTime,
         error: error instanceof Error ? error.message : 'Unknown error',

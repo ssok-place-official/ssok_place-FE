@@ -15,6 +15,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@react-native-vector-icons/ionicons";
+import { apiService } from "../services/api";
 
 export default function Login() {
   const navigation = useNavigation();
@@ -37,25 +38,60 @@ export default function Login() {
       return;
     }
 
-    // 이메일 형식 간단 검사
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert("알림", "올바른 이메일 형식을 입력해주세요.");
-      return;
-    }
-
     setIsLoading(true);
 
-    // 데모 버전: 입력만 있으면 로그인 성공 처리
-    // 약간의 딜레이를 주어 실제 로그인처럼 보이게 함
-    setTimeout(() => {
-      setIsLoading(false);
-      // 로그인 성공 - MapScreen으로 이동
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Map" as never }],
+    try {
+      if (__DEV__) {
+        console.log('🔐 [Login] 로그인 시도 시작...');
+        console.log('   - 이메일:', email);
+      }
+
+      // API 호출
+      const response = await apiService.login({
+        email: email.trim(),
+        password: password,
       });
-    }, 500);
+
+      if (__DEV__) {
+        console.log('📊 [Login] API 응답:', {
+          code: response.code,
+          message: response.message,
+          hasData: !!response.data,
+        });
+      }
+
+      if (response.code === 200 && response.data) {
+        // 로그인 성공
+        if (__DEV__) {
+          console.log('✅ [Login] 로그인 성공');
+          console.log('   - 사용자:', response.data.user);
+          console.log('   - 토큰 저장 완료');
+        }
+
+        // MapScreen으로 이동
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Map" as never }],
+        });
+      } else {
+        // 로그인 실패
+        const errorMessage = response.message || '로그인에 실패했습니다.';
+        if (__DEV__) {
+          console.error('❌ [Login] 로그인 실패:', errorMessage);
+        }
+        Alert.alert("로그인 실패", errorMessage);
+      }
+    } catch (error) {
+      console.error('❌ [Login] 로그인 중 오류 발생:', error);
+      Alert.alert(
+        "오류",
+        error instanceof Error 
+          ? error.message 
+          : "로그인 중 오류가 발생했습니다. 네트워크 연결을 확인해주세요."
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

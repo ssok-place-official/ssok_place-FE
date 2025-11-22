@@ -99,6 +99,13 @@ export interface LoginResponse {
   };
 }
 
+// 사용자 정보 관련 타입 정의
+export interface UserInfo {
+  id: number;
+  email: string;
+  nickname: string;
+}
+
 // 환경 설정에서 API Base URL 가져오기
 const BASE_URL = config.apiBaseUrl;
 
@@ -257,11 +264,14 @@ class ApiService {
     });
   }
 
-  // 사용자의 모든 저장된 장소 목록 조회 (카테고리별 그룹화)
+  // GET /places - 사용자의 모든 저장된 장소 목록 조회
   async getUserPlaces(): Promise<ApiResponse<Place[]>> {
-    // 실제 API 엔드포인트가 있다면 해당 URL 사용
-    // 현재는 임시로 nearby API를 사용하거나 별도 엔드포인트 구현 필요
-    return this.request<Place[]>(API_ENDPOINTS.PLACES_USER);
+    return this.request<Place[]>(API_ENDPOINTS.PLACES);
+  }
+
+  // GET /places/all - 사용자 저장 장소 전체 목록 조회
+  async getUserPlacesAll(): Promise<ApiResponse<Place[]>> {
+    return this.request<Place[]>(API_ENDPOINTS.PLACES_ALL);
   }
 
   // 서버 헬스체크
@@ -348,6 +358,11 @@ class ApiService {
     }
 
     return response;
+  }
+
+  // GET /users/me - 내 정보 조회
+  async getMyInfo(): Promise<ApiResponse<UserInfo>> {
+    return this.request<UserInfo>(API_ENDPOINTS.USERS_ME);
   }
 
   // 현재 환경 정보 반환

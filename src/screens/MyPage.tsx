@@ -32,7 +32,7 @@ export default function MyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activityPlaces, setActivityPlaces] = useState<ActivityPlace[]>([]);
-  const [userNickname] = useState('갈래말래');
+  const [userNickname, setUserNickname] = useState('사용자');
   const [userKeywords] = useState<UserKeyword[]>([
     {
       label: '베이커리 카페',
@@ -56,20 +56,101 @@ export default function MyPage() {
     }
   ]);
 
+  // 사용자 정보 로드
+  const loadUserInfo = async () => {
+    try {
+      if (__DEV__) {
+        console.log('👤 [MyPage] 사용자 정보 로드 시작...');
+        console.log('📍 API 엔드포인트: /users/me');
+      }
+
+      const startTime = Date.now();
+      const response = await apiService.getMyInfo();
+      const responseTime = Date.now() - startTime;
+
+      if (__DEV__) {
+        console.log(`⏱️  [MyPage] 사용자 정보 API 응답 시간: ${responseTime}ms`);
+        console.log(`📊 [MyPage] 응답 코드: ${response.code}`);
+        console.log(`📝 [MyPage] 응답 메시지: ${response.message}`);
+        console.log(`📦 [MyPage] 응답 데이터:`, JSON.stringify(response.data, null, 2));
+      }
+
+      if (response.code === 200 && response.data) {
+        if (__DEV__) {
+          console.log(`✅ [MyPage] 사용자 정보 로드 성공`);
+          console.log(`   - 닉네임: ${response.data.nickname}`);
+          console.log(`   - 이메일: ${response.data.email}`);
+        }
+        setUserNickname(response.data.nickname);
+      } else {
+        if (__DEV__) {
+          console.warn(`⚠️  [MyPage] 사용자 정보 API 응답 실패`);
+          console.warn(`   - 코드: ${response.code}`);
+          console.warn(`   - 메시지: ${response.message}`);
+        }
+        // 실패해도 기본값 유지
+      }
+    } catch (error) {
+      console.error('❌ [MyPage] 사용자 정보 로드 실패:', error);
+      if (__DEV__) {
+        console.error('   - 에러 타입:', error instanceof Error ? error.constructor.name : typeof error);
+        console.error('   - 에러 메시지:', error instanceof Error ? error.message : String(error));
+      }
+      // 에러 발생 시 기본값 유지
+    }
+  };
+
   // 활동 데이터 로드
   const loadActivity = async (showLoading = false) => {
     try {
       if (showLoading) setIsLoading(true);
       
+      if (__DEV__) {
+        console.log('🔄 [MyPage] 활동 데이터 로드 시작...');
+        console.log('📍 API 엔드포인트: /profile/me/activity');
+      }
+      
+      const startTime = Date.now();
       const response = await apiService.getMyActivity();
+      const responseTime = Date.now() - startTime;
+      
+      if (__DEV__) {
+        console.log(`⏱️  [MyPage] API 응답 시간: ${responseTime}ms`);
+        console.log(`📊 [MyPage] 응답 코드: ${response.code}`);
+        console.log(`📝 [MyPage] 응답 메시지: ${response.message}`);
+        console.log(`📦 [MyPage] 응답 데이터:`, JSON.stringify(response.data, null, 2));
+      }
       
       if (response.code === 200 && response.data) {
         // 자주 방문한 장소와 뜸한 장소를 합쳐서 최신순으로 정렬
         const allPlaces = [...response.data.frequent, ...response.data.dormant];
+        
+        if (__DEV__) {
+          console.log(`✅ [MyPage] 데이터 로드 성공`);
+          console.log(`   - 자주 방문한 장소: ${response.data.frequent.length}개`);
+          console.log(`   - 뜸한 장소: ${response.data.dormant.length}개`);
+          console.log(`   - 전체 장소: ${allPlaces.length}개`);
+        }
+        
         setActivityPlaces(allPlaces);
+      } else {
+        if (__DEV__) {
+          console.warn(`⚠️  [MyPage] API 응답 실패 또는 데이터 없음`);
+          console.warn(`   - 코드: ${response.code}`);
+          console.warn(`   - 메시지: ${response.message}`);
+        }
+        setActivityPlaces([]);
       }
     } catch (error) {
-      console.error('Failed to load activity:', error);
+      console.error('❌ [MyPage] 활동 데이터 로드 실패:', error);
+      if (__DEV__) {
+        console.error('   - 에러 타입:', error instanceof Error ? error.constructor.name : typeof error);
+        console.error('   - 에러 메시지:', error instanceof Error ? error.message : String(error));
+        if (error instanceof Error && error.stack) {
+          console.error('   - 스택 트레이스:', error.stack);
+        }
+      }
+      setActivityPlaces([]);
       // 에러가 발생해도 화면을 표시
     } finally {
       if (showLoading) setIsLoading(false);
@@ -85,13 +166,26 @@ export default function MyPage() {
 
   // 컴포넌트 마운트 시 데이터 로드
   useEffect(() => {
-    loadActivity(true);
-    
-    // 개발 모드에서 환경 정보 로그
-    if (__DEV__) {
-      logServerInfo();
-      ApiTester.logEnvironmentInfo();
-    }
+    // 사용자 정보와 활동 데이터를 병렬로 로드
+    const loadData = async () => {
+      setIsLoading(true);
+      
+      // 개발 모드에서 환경 정보 로그
+      if (__DEV__) {
+        logServerInfo();
+        ApiTester.logEnvironmentInfo();
+      }
+
+      // 사용자 정보와 활동 데이터를 병렬로 로드
+      await Promise.all([
+        loadUserInfo(),
+        loadActivity(false),
+      ]);
+
+      setIsLoading(false);
+    };
+
+    loadData();
   }, []);
 
   // 개발 모드에서 API 테스트 실행
@@ -104,19 +198,63 @@ export default function MyPage() {
         text: '테스트 실행', 
         onPress: async () => {
           try {
+            console.log('🧪 [MyPage] API 테스트 시작...');
+            
+            // 기본 테스트 실행
             const results = await ApiTester.testAllEndpoints();
+            
+            // MyActivity API 테스트 추가
+            const myActivityStartTime = Date.now();
+            try {
+              const myActivityResponse = await apiService.getMyActivity();
+              const myActivityResponseTime = Date.now() - myActivityStartTime;
+              
+              results.push({
+                endpoint: 'GET /profile/me/activity',
+                success: myActivityResponse.code === 200,
+                responseTime: myActivityResponseTime,
+                error: myActivityResponse.code !== 200 ? myActivityResponse.message : undefined,
+              });
+              
+              if (__DEV__) {
+                console.log('📊 [MyPage] MyActivity 테스트 결과:');
+                console.log(`   - 성공: ${myActivityResponse.code === 200}`);
+                console.log(`   - 응답 시간: ${myActivityResponseTime}ms`);
+                console.log(`   - 응답 코드: ${myActivityResponse.code}`);
+                if (myActivityResponse.data) {
+                  console.log(`   - 자주 방문: ${myActivityResponse.data.frequent.length}개`);
+                  console.log(`   - 뜸한 장소: ${myActivityResponse.data.dormant.length}개`);
+                }
+              }
+            } catch (error) {
+              results.push({
+                endpoint: 'GET /profile/me/activity',
+                success: false,
+                responseTime: Date.now() - myActivityStartTime,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              });
+            }
+            
             const successCount = results.filter(r => r.success).length;
             const totalCount = results.length;
+            
+            console.log('✅ [MyPage] API 테스트 완료');
+            console.log(`   - 성공: ${successCount}/${totalCount}`);
+            results.forEach(r => {
+              console.log(`   - ${r.endpoint}: ${r.success ? '✅' : '❌'} (${r.responseTime}ms)`);
+              if (r.error) console.log(`     에러: ${r.error}`);
+            });
             
             Alert.alert(
               'API 테스트 결과', 
               `성공: ${successCount}/${totalCount}\n\n` +
               results.map(r => 
-                `${r.endpoint}: ${r.success ? '✅' : '❌'} (${r.responseTime}ms)`
-              ).join('\n')
+                `${r.endpoint}: ${r.success ? '✅' : '❌'} (${r.responseTime}ms)${r.error ? `\n  ${r.error}` : ''}`
+              ).join('\n\n')
             );
           } catch (error) {
-            Alert.alert('테스트 실패', 'API 테스트 중 오류가 발생했습니다.');
+            console.error('❌ [MyPage] API 테스트 중 오류:', error);
+            Alert.alert('테스트 실패', `API 테스트 중 오류가 발생했습니다.\n${error instanceof Error ? error.message : String(error)}`);
           }
         }
       }
