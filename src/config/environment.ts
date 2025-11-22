@@ -88,6 +88,7 @@ export const API_ENDPOINTS = {
   // 인증 관련 엔드포인트
   LOGIN: '/users/login',
   USERS_ME: '/users/me',
+  USERS_LOOKUP: '/users/lookup',
   PLACES: '/places',
   PLACES_NEARBY: '/places/nearby',
   PLACES_ALL: '/places/all', // 사용자 저장 장소 전체 목록

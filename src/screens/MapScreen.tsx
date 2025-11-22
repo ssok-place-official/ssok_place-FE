@@ -425,7 +425,11 @@ export default function MapScreen() {
   useFocusEffect(
     useCallback(() => {
       setMapKey(prev => prev + 1);
-    }, [])
+      // 화면 포커스 시 친구 목록 새로고침 (친구 요청 수락/거절 후 반영)
+      if (friends.length > 0 || isBottomSheetOpen) {
+        fetchFriends();
+      }
+    }, [friends.length, isBottomSheetOpen, fetchFriends])
   );
 
   return (
@@ -636,11 +640,11 @@ export default function MapScreen() {
               value={searchQuery}
               onChangeText={handleSearchChange}
             />
-            <TouchableOpacity style={styles.searchActionButton}>
+            <TouchableOpacity
+              style={styles.searchActionButton}
+              onPress={() => (navigation as any).navigate('AddFriend')}
+            >
               <Ionicons name="add" size={20} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.searchActionButton}>
-              <Ionicons name="mic" size={20} color="#666" />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.searchActionButton}

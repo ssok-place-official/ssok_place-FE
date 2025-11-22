@@ -67,6 +67,13 @@ export interface FriendRequest {
   status: 'PENDING';
 }
 
+export interface UserLookup {
+  userId: number;
+  nickname: string;
+  relation: 'FRIEND' | 'NONE' | 'PENDING';
+  me: boolean;
+}
+
 // 활동 관련 타입 정의
 export interface ActivityPlace {
   placeId: number;
@@ -410,6 +417,12 @@ class ApiService {
         method: 'POST',
       }
     );
+  }
+
+  // GET /users/lookup - 사용자 조회 (친구 ID로)
+  async lookupUser(friendId: number): Promise<ApiResponse<UserLookup>> {
+    const endpoint = `${API_ENDPOINTS.USERS_LOOKUP}?friendId=${friendId}`;
+    return this.request<UserLookup>(endpoint);
   }
 
   // GET /profile/me/activity - 내 활동(자주 방문한 장소/뜸한 장소)

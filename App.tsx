@@ -11,6 +11,8 @@ import SearchScreen from "./src/screens/SearchScreen.tsx"; // ⬅️ 추가
 import MyPage from "./src/screens/MyPage";
 import ListPage from "./src/screens/ListPage";
 import MakeAppointmentScreen from "./src/screens/MakeAppointmentScreen";
+import AddFriend from "./src/screens/AddFriend";
+import FriendRequest from "./src/screens/FriendRequest";
 
 const Stack = createNativeStackNavigator();
 
@@ -38,6 +40,16 @@ export default function App() {
               <Stack.Screen
                 name="MakeAppointment"
                 component={MakeAppointmentScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="AddFriend"
+                component={AddFriend}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="FriendRequest"
+                component={FriendRequest}
                 options={{ headerShown: false }}
               />
             </Stack.Navigator>
