@@ -113,6 +113,37 @@ export interface UserInfo {
   nickname: string;
 }
 
+// AI 검색 관련 타입 정의
+export interface SearchRequest {
+  query: string;
+  members?: number[];
+  viewport?: {
+    centerLat: number;
+    centerLng: number;
+    radius: number;
+  };
+  constraints?: {
+    budget?: 'low' | 'mid' | 'high';
+    openNow?: boolean;
+  };
+}
+
+export interface SearchItem {
+  placeId: number;
+  name: string;
+  reasons: string[];
+  images: string[];
+}
+
+export interface SearchSection {
+  title: string;
+  items: SearchItem[];
+}
+
+export interface SearchResponse {
+  sections: SearchSection[];
+}
+
 // 환경 설정에서 API Base URL 가져오기
 const BASE_URL = config.apiBaseUrl;
 
@@ -449,6 +480,14 @@ class ApiService {
   // GET /users/me - 내 정보 조회
   async getMyInfo(): Promise<ApiResponse<UserInfo>> {
     return this.request<UserInfo>(API_ENDPOINTS.USERS_ME);
+  }
+
+  // POST /ai/search - 자연어 검색
+  async searchPlaces(searchData: SearchRequest): Promise<ApiResponse<SearchResponse>> {
+    return this.request<SearchResponse>(API_ENDPOINTS.AI_SEARCH, {
+      method: 'POST',
+      body: JSON.stringify(searchData),
+    });
   }
 
   // 현재 환경 정보 반환

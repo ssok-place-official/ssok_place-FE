@@ -101,6 +101,8 @@ export const API_ENDPOINTS = {
   FRIENDS_RESPOND: (friendUserId: number, accept: boolean) => `/friends/respond?friendUserId=${friendUserId}&accept=${accept}`,
   // 프로필 관련 엔드포인트
   PROFILE_ACTIVITY: '/profile/me/activity',
+  // AI 검색 관련 엔드포인트
+  AI_SEARCH: '/ai/search',
 } as const;
 
 /**
