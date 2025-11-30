@@ -1,12 +1,15 @@
 // src/screens/MyPage.tsx
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, RefreshControl, Image } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
-import { apiService, Place, ActivityPlace } from "../services/api";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { apiService, Place, ActivityPlace, SearchPlace } from "../services/api";
 import { ApiTester } from "../utils/apiTest";
 import { logServerInfo } from "../config/environment";
+
+const RECENT_SEARCH_PLACES_KEY = 'recent_search_places';
 
 // 네비게이션 타입 정의
 type RootStackParamList = {
@@ -32,6 +35,7 @@ export default function MyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activityPlaces, setActivityPlaces] = useState<ActivityPlace[]>([]);
+  const [recentSearchPlaces, setRecentSearchPlaces] = useState<SearchPlace[]>([]);
   const [userNickname, setUserNickname] = useState('사용자');
   const [userKeywords] = useState<UserKeyword[]>([
     {
@@ -158,10 +162,30 @@ export default function MyPage() {
     }
   };
 
+  // 최근 검색 결과 로드
+  const loadRecentSearchPlaces = async () => {
+    try {
+      const data = await AsyncStorage.getItem(RECENT_SEARCH_PLACES_KEY);
+      if (data) {
+        const places: SearchPlace[] = JSON.parse(data);
+        setRecentSearchPlaces(places);
+        if (__DEV__) {
+          console.log('✅ [MyPage] 최근 검색 결과 로드 성공:', places.length, '개');
+        }
+      } else {
+        setRecentSearchPlaces([]);
+      }
+    } catch (error) {
+      console.error('❌ [MyPage] 최근 검색 결과 로드 실패:', error);
+      setRecentSearchPlaces([]);
+    }
+  };
+
   // 새로고침 핸들러
   const handleRefresh = () => {
     setIsRefreshing(true);
     loadActivity(false);
+    loadRecentSearchPlaces();
   };
 
   // 컴포넌트 마운트 시 데이터 로드
@@ -176,10 +200,11 @@ export default function MyPage() {
         ApiTester.logEnvironmentInfo();
       }
 
-      // 사용자 정보와 활동 데이터를 병렬로 로드
+      // 사용자 정보, 활동 데이터, 최근 검색 결과를 병렬로 로드
       await Promise.all([
         loadUserInfo(),
         loadActivity(false),
+        loadRecentSearchPlaces(),
       ]);
 
       setIsLoading(false);
@@ -187,6 +212,13 @@ export default function MyPage() {
 
     loadData();
   }, []);
+
+  // 화면 포커스 시 최근 검색 결과 새로고침
+  useFocusEffect(
+    React.useCallback(() => {
+      loadRecentSearchPlaces();
+    }, [])
+  );
 
   // 개발 모드에서 API 테스트 실행
   const runApiTest = async () => {
@@ -355,7 +387,66 @@ export default function MyPage() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{userNickname} 님의 최근 추천 장소</Text>
           </View>
-          {activityPlaces.length > 0 ? (
+          {recentSearchPlaces.length > 0 ? (
+            recentSearchPlaces.slice(0, 3).map((place, index) => {
+              // 해시태그 추출 함수 (SearchResult와 동일)
+              const extractHashtags = (mood?: string, review?: string, color?: string): string[] => {
+                const hashtags: string[] = [];
+                const keywords = ['따뜻한', '디저트', '크림톤', '조용한', '차가 맛있는', '사진 찍기 좋은', '친절', '커피', '인테리어', '대화하기'];
+                const allText = [mood, review, color].filter(Boolean).join(' ');
+                keywords.forEach(keyword => {
+                  if (allText.includes(keyword) && !hashtags.includes(keyword)) {
+                    hashtags.push(keyword);
+                  }
+                });
+                if (hashtags.length === 0) {
+                  return ['따뜻한', '디저트', '조용한'];
+                }
+                return hashtags.slice(0, 4);
+              };
+
+              const hashtags = extractHashtags(place.mood, place.review, place.color);
+              const emojis = ['🍰', '🖼', '🌻'];
+              const emoji = emojis[index % emojis.length];
+
+              return (
+                <View key={place.id} style={styles.recommendedPlace}>
+                  {/* Place Image */}
+                  <Image
+                    source={{ uri: place.image_url }}
+                    style={styles.placeImage}
+                    defaultSource={require('../../assets/map_static.png')}
+                  />
+
+                  {/* Place Info */}
+                  <View style={styles.placeInfo}>
+                    {/* Place Name with Emoji */}
+                    <View style={styles.placeNameRow}>
+                      <Text style={styles.placeEmoji}>{emoji}</Text>
+                      <Text style={styles.placeName}>{place.name}</Text>
+                    </View>
+
+                    {/* Hashtags */}
+                    <Text style={styles.placeHashtags} numberOfLines={2}>
+                      {hashtags.map(tag => `#${tag}`).join(' ')}
+                    </Text>
+
+                    {/* Review with Icon */}
+                    <View style={styles.placeComment}>
+                      <Image
+                        source={require('../../assets/ssoklogo-removebg-preview.png')}
+                        style={styles.commentIcon}
+                        resizeMode="contain"
+                      />
+                      <Text style={styles.commentText} numberOfLines={1}>
+                        {place.review || '좋은 장소입니다'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })
+          ) : activityPlaces.length > 0 ? (
             activityPlaces.slice(0, 3).map((place, index) => (
               <TouchableOpacity key={index} style={styles.recommendedPlace} activeOpacity={0.7}>
                 <View style={styles.placeImage}>
@@ -573,19 +664,25 @@ const styles = StyleSheet.create({
   placeImage: {
     width: 110,
     height: 110,
-    backgroundColor: "#f0f0f0",
+    backgroundColor: "#E5E5E5",
     borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 0,
+    marginRight: 12,
   },
   placeImageText: {
     fontSize: 40,
   },
   placeInfo: {
     flex: 1,
-    justifyContent: "center",
-    gap: 4,
+    justifyContent: "space-between",
+  },
+  placeNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  placeEmoji: {
+    fontSize: 20,
+    marginRight: 4,
   },
   placeIcon: {
     fontSize: 20,
@@ -594,8 +691,15 @@ const styles = StyleSheet.create({
   placeName: {
     fontSize: 20,
     fontWeight: "500",
+    lineHeight: 24,
     color: "#000",
-    marginBottom: 4,
+  },
+  placeHashtags: {
+    fontSize: 20,
+    fontWeight: "500",
+    lineHeight: 24,
+    color: "#939396",
+    marginBottom: 8,
   },
   placeKeywords: {
     fontSize: 14,
@@ -611,7 +715,12 @@ const styles = StyleSheet.create({
   placeComment: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+  },
+  commentIcon: {
+    width: 29,
+    height: 29,
+    borderRadius: 11,
+    marginRight: 8,
   },
   commentEmoji: {
     fontSize: 20,
@@ -625,8 +734,10 @@ const styles = StyleSheet.create({
   },
   commentText: {
     fontSize: 20,
-    fontWeight: "600",
+    fontWeight: "500",
+    lineHeight: 24,
     color: "#000",
+    flex: 1,
   },
   emptyActivity: {
     fontSize: 14,

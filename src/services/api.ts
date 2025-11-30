@@ -144,6 +144,29 @@ export interface SearchResponse {
   sections: SearchSection[];
 }
 
+// 새로운 검색 API 타입 정의
+export interface NewSearchRequest {
+  mood?: string;
+  review?: string;
+  color?: string;
+  top_k?: number;
+}
+
+export interface SearchPlace {
+  id: number;
+  name: string;
+  score: number;
+  image_url: string;
+  mood: string;
+  review: string;
+  color: string;
+}
+
+export interface NewSearchResponse {
+  status: string;
+  places: SearchPlace[];
+}
+
 // 환경 설정에서 API Base URL 가져오기
 const BASE_URL = config.apiBaseUrl;
 
@@ -488,6 +511,45 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(searchData),
     });
+  }
+
+  // POST /search - 새로운 자연어 검색 (mood, review, color 형식)
+  async searchPlacesNew(searchData: NewSearchRequest): Promise<NewSearchResponse> {
+    try {
+      const token = await this.getToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // AI 서버는 별도 도메인 사용
+      const response = await fetch('http://ai.ebiztable.shop/search', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(searchData),
+      });
+
+      const text = await response.text();
+      
+      if (!text || text.trim().length === 0) {
+        return {
+          status: 'error',
+          places: [],
+        };
+      }
+
+      const data = JSON.parse(text);
+      return data;
+    } catch (error) {
+      console.error('Search API request failed:', error);
+      return {
+        status: 'error',
+        places: [],
+      };
+    }
   }
 
   // 현재 환경 정보 반환

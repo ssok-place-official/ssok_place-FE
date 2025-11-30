@@ -103,6 +103,7 @@ export const API_ENDPOINTS = {
   PROFILE_ACTIVITY: '/profile/me/activity',
   // AI 검색 관련 엔드포인트
   AI_SEARCH: '/ai/search',
+  SEARCH: '/search', // 새로운 검색 API
 } as const;
 
 /**

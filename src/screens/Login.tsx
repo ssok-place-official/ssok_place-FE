@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -109,7 +110,11 @@ export default function Login() {
         {/* 앱 타이틀 및 로고 */}
         <View style={styles.header}>
           <Text style={styles.title}>Ssok Place</Text>
-          <Text style={styles.logo}>📍</Text>
+          <Image
+            source={require('../../assets/ssoklogo-removebg-preview.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
 
         {/* E-MAIL 입력 필드 */}
@@ -220,7 +225,8 @@ const styles = StyleSheet.create({
     color: "#000",
   },
   logo: {
-    fontSize: 28,
+    width: 28,
+    height: 28,
   },
   inputContainer: {
     flexDirection: "row",

@@ -606,7 +606,11 @@ export default function MapScreen() {
           accessibilityRole="button"
           accessibilityLabel="자연어 검색 열기"
         >
-          <Ionicons name="search-circle-outline" size={32} color="#000" />
+          <Image
+            source={require('../../assets/ssoklogo-removebg-preview.png')}
+            style={styles.searchTabIcon}
+            resizeMode="contain"
+          />
           <Text style={styles.tabLabel}>검색</Text>
         </Pressable>
 
@@ -943,6 +947,10 @@ const styles = StyleSheet.create({
   },
   tabButton: { alignItems: "center", justifyContent: "center" },
   tabLabel: { fontSize: 12, marginTop: 4, color: "#000" },
+  searchTabIcon: {
+    width: 32,
+    height: 32,
+  },
 
   // BottomSheet 스타일
   bottomSheet: {

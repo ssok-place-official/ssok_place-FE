@@ -8,6 +8,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import Login from "./src/screens/Login";
 import MapScreen from "./src/screens/MapScreen";
 import SearchScreen from "./src/screens/SearchScreen.tsx"; // ⬅️ 추가
+import SearchResult from "./src/screens/SearchResult";
 import MyPage from "./src/screens/MyPage";
 import ListPage from "./src/screens/ListPage";
 import MakeAppointmentScreen from "./src/screens/MakeAppointmentScreen";
@@ -34,7 +35,16 @@ export default function App() {
                 options={{ headerShown: false }}
               />
               
-              <Stack.Screen name="SearchScreen" component={(SearchScreen)} />
+              <Stack.Screen 
+                name="SearchScreen" 
+                component={SearchScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen 
+                name="SearchResult" 
+                component={SearchResult}
+                options={{ headerShown: false }}
+              />
               <Stack.Screen name="MyPage" component={MyPage} options={{ title: "마이페이지" }} />
               <Stack.Screen name="ListPage" component={ListPage} options={{ title: "전체 리스트" }} />
               <Stack.Screen
