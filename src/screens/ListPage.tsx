@@ -10,26 +10,28 @@ export default function ListPage() {
   const insets = useSafeAreaInsets();
 
   const lists = [
-    { label: "카페", count: 165, color: "rgba(255,72,72,0.31)" },
-    { label: "음식점", count: 113, color: "#FFE26E" },
-    { label: "놀거리", count: 77, color: "rgba(36,29,232,0.42)" },
-    { label: "숙소", count: 13, color: "rgba(86,142,81,0.63)" },
-    { label: "장소대여", count: 3, color: "rgba(74,144,157,0.67)" },
-    { label: "미용실", count: 6, color: "rgba(255,120,221,0.67)" },
-    { label: "꽃집", count: 22, color: "rgba(255,39,86,0.53)" },
-    { label: "옷", count: 15, color: "#A2796A" },
+    { label: "아늑함", count: 30, color: "rgba(255,72,72,0.31)" },
   ];
 
   return (
     <View style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}> 
       {/* Header */}
       <View style={styles.header}> 
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="chevron-back" size={24} color="#111" />
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()} 
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={24} color="#000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>전체 리스트 14</Text>
-        <TouchableOpacity>
-          <Text style={styles.sortText}>최신순</Text>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>나의 저장 장소</Text>
+        </View>
+        <TouchableOpacity style={styles.sortButton}>
+          <View style={styles.sortContainer}>
+            <Text style={styles.sortText}>최신순</Text>
+            <View style={styles.sortIcon} />
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -44,7 +46,12 @@ export default function ListPage() {
 
         {/* 리스트 항목 */}
         {lists.map((item, idx) => (
-          <View key={idx} style={styles.row}> 
+          <TouchableOpacity 
+            key={idx} 
+            style={styles.row}
+            onPress={() => (navigation as any).navigate('List1', { listName: item.label, count: item.count })}
+            activeOpacity={0.7}
+          > 
             <View style={[styles.iconCircle, { backgroundColor: item.color }]}> 
               <Ionicons name="star" size={16} color="#fff" />
             </View>
@@ -56,7 +63,7 @@ export default function ListPage() {
               </View>
             </View>
             <Ionicons name="ellipsis-vertical" size={18} color="#8C8C8C" />
-          </View>
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </View>
@@ -71,9 +78,48 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 6,
+    marginTop: 10,
   },
-  headerTitle: { fontSize: 20, fontWeight: "600", color: "#000" },
-  sortText: { fontSize: 16, fontWeight: "600", color: "#828282" },
+  backButton: {
+    width: 40,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { 
+    fontSize: 20, 
+    fontWeight: "600", 
+    color: "#000",
+    letterSpacing: -0.02,
+  },
+  sortButton: {
+    width: 60,
+    alignItems: "flex-end",
+  },
+  sortContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sortText: { 
+    fontSize: 16, 
+    fontWeight: "600", 
+    color: "#828282",
+    letterSpacing: -0.02,
+  },
+  sortIcon: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 4,
+    borderRightWidth: 4,
+    borderTopWidth: 6,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#828282",
+    marginLeft: 4,
+    transform: [{ rotate: "180deg" }],
+  },
   content: { paddingHorizontal: 16, paddingBottom: 24 },
   createRow: {
     flexDirection: "row",
@@ -91,14 +137,13 @@ const styles = StyleSheet.create({
     borderColor: "#DADADA",
   },
   iconCircle: {
-    width: 37,
-    height: 37,
-    borderRadius: 18.5,
+    width: 33.91,
+    height: 34.8,
+    borderRadius: 11,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 12,
-    borderWidth: 2,
-    borderColor: "#DADADA",
+    borderWidth: 0,
   },
   rowTitle: { fontSize: 18, fontWeight: "500", color: "#222225" },
   rowSub: { marginLeft: 6, fontSize: 14, color: "#828282" },

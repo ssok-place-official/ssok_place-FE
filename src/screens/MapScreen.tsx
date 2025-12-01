@@ -16,7 +16,7 @@ import {
 import Ionicons from '@react-native-vector-icons/ionicons';
 //import MaterialIcons from '@react-native-vector-icons/material-icons';
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { Pressable } from 'react-native';
 // @ts-ignore - 타입 정의 문제로 인한 임시 처리
 import { NaverMapView, NaverMapMarkerOverlay } from '@mj-studio/react-native-naver-map';
@@ -26,9 +26,24 @@ export default function MapScreen() {
   const bottomSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
   const placeDetailSheetRef = useRef<React.ComponentRef<typeof BottomSheet>>(null);
   const navigation = useNavigation();
+  const route = useRoute();
+  
+  // List1에서 전달된 선택된 장소 정보 (route.params가 변경될 때마다 업데이트)
+  const routeParams = (route.params as any) || {};
+  const selectedPlaceId = routeParams?.selectedPlaceId;
+  const selectedPlaceLat = routeParams?.selectedPlaceLat;
+  const selectedPlaceLng = routeParams?.selectedPlaceLng;
+  const selectedPlaceName = routeParams?.selectedPlaceName;
+  
   const initialCamera = useMemo(
-    () => ({ latitude: 37.2840131, longitude: 127.0141105, zoom: 14 }),
-    []
+    () => {
+      // 선택된 장소가 있으면 해당 위치로, 없으면 기본 위치
+      if (selectedPlaceLat && selectedPlaceLng) {
+        return { latitude: selectedPlaceLat, longitude: selectedPlaceLng, zoom: 16 };
+      }
+      return { latitude: 37.2840131, longitude: 127.0141105, zoom: 14 };
+    },
+    [selectedPlaceLat, selectedPlaceLng]
   );
   const [mapKey, setMapKey] = useState(0);
   const [placeIds, setPlaceIds] = useState<string[]>([]); // placeId 목록만 저장
@@ -124,6 +139,71 @@ export default function MapScreen() {
   useEffect(() => {
     loadPlaceIds();
   }, [loadPlaceIds]);
+
+  // List1에서 선택된 장소가 있으면 해당 장소 상세 정보 로드 및 지도에 표시
+  useEffect(() => {
+    // route params에서 최신 값 가져오기
+    const currentParams = (route.params as any) || {};
+    const currentPlaceId = currentParams?.selectedPlaceId;
+    const currentPlaceLat = currentParams?.selectedPlaceLat;
+    const currentPlaceLng = currentParams?.selectedPlaceLng;
+    const currentPlaceName = currentParams?.selectedPlaceName;
+    
+    if (currentPlaceId && currentPlaceLat && currentPlaceLng) {
+      if (__DEV__) {
+        console.log(`📍 [MapScreen] 선택된 장소 정보: ${currentPlaceName} (placeId: ${currentPlaceId})`);
+        console.log(`   - 위치: ${currentPlaceLat}, ${currentPlaceLng}`);
+      }
+      
+      // 지도 카메라를 선택된 장소 위치로 이동 (mapKey를 변경하여 지도 재렌더링)
+      // 지도가 완전히 렌더링되도록 충분한 지연
+      const timer = setTimeout(() => {
+        setMapKey(prev => prev + 1);
+        if (__DEV__) {
+          console.log(`📍 [MapScreen] 지도 카메라 이동 - mapKey 업데이트`);
+        }
+      }, 200);
+      
+      // 선택된 장소의 상세 정보 불러오기
+      const loadSelectedPlaceDetail = async () => {
+        try {
+          setIsLoadingPlaceDetails(true);
+          const response = await apiService.getPlaceDetail(String(currentPlaceId), true);
+          
+          if (response.code === 200 && response.data) {
+            setSelectedPlace(response.data);
+            // 장소 상세 정보 BottomSheet 열기 (지도 렌더링 후)
+            setTimeout(() => {
+              placeDetailSheetRef.current?.snapToIndex(0);
+              setIsPlaceDetailSheetOpen(true);
+            }, 400);
+            
+            if (__DEV__) {
+              console.log(`✅ [MapScreen] 선택된 장소 상세 정보 로드 성공`);
+            }
+          }
+        } catch (error) {
+          console.error('❌ [MapScreen] 선택된 장소 상세 정보 로드 실패:', error);
+        } finally {
+          setIsLoadingPlaceDetails(false);
+        }
+      };
+      
+      loadSelectedPlaceDetail();
+      
+      // cleanup: 컴포넌트 언마운트 시 타이머 정리
+      return () => {
+        clearTimeout(timer);
+      };
+    } else {
+      // 선택된 장소가 없으면 BottomSheet 닫기
+      if (isPlaceDetailSheetOpen) {
+        placeDetailSheetRef.current?.close();
+        setIsPlaceDetailSheetOpen(false);
+        setSelectedPlace(null);
+      }
+    }
+  }, [route.params, isPlaceDetailSheetOpen]);
 
   // 카테고리 칩 아래 위치 계산
   // 상단 여백 40px + 검색 바 높이 ~56px + 카테고리 칩 marginTop 12px + 칩 높이 32px = 약 140px
@@ -424,7 +504,6 @@ export default function MapScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setMapKey(prev => prev + 1);
       // 화면 포커스 시 친구 목록 새로고침 (친구 요청 수락/거절 후 반영)
       if (friends.length > 0 || isBottomSheetOpen) {
         fetchFriends();

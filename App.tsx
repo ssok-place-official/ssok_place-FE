@@ -11,6 +11,7 @@ import SearchScreen from "./src/screens/SearchScreen.tsx"; // ⬅️ 추가
 import SearchResult from "./src/screens/SearchResult";
 import MyPage from "./src/screens/MyPage";
 import ListPage from "./src/screens/ListPage";
+import List1 from "./src/screens/List1";
 import MakeAppointmentScreen from "./src/screens/MakeAppointmentScreen";
 import AddFriend from "./src/screens/AddFriend";
 import FriendRequest from "./src/screens/FriendRequest";
@@ -47,6 +48,7 @@ export default function App() {
               />
               <Stack.Screen name="MyPage" component={MyPage} options={{ title: "마이페이지" }} />
               <Stack.Screen name="ListPage" component={ListPage} options={{ title: "전체 리스트" }} />
+              <Stack.Screen name="List1" component={List1} options={{ title: "나의 저장 장소" }} />
               <Stack.Screen
                 name="MakeAppointment"
                 component={MakeAppointmentScreen}
